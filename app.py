@@ -1,0 +1,95 @@
+from flask import Flask,request,jsonify,session,json
+from pymongo import MongoClient
+import bcrypt 
+import jwt
+from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+app = Flask(__name__)
+passw = os.getenv("passw")
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
+connection_string = f"mongodb+srv://hatim:{passw}@cluster0.f7or37n.mongodb.net/?retryWrites=true&w=majority"
+def MongoDB():
+  client = MongoClient(connection_string)
+  db = client.get_database('SlideSter')
+  records = db.register
+  return records
+
+
+def generate_token(user_id):
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(hours=1)
+    }
+    token = jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
+    return token
+
+def create_session(user_email):
+    session['user_email'] = user_email
+
+records = MongoDB()
+@app.route("/adduser",methods=['POST'])
+def adduser():
+  new_record = request.json
+  email = new_record['email']
+  existing_user = MongoDB().find_one({'email': email})
+  if existing_user:
+      response = {'message': 'exists'}
+      return jsonify(response)
+
+  salt = bcrypt.gensalt()
+  new_record['password'] = bcrypt.hashpw(new_record['password'].encode('utf-8'), salt)
+  result = MongoDB().insert_one(new_record)
+    
+  if result.inserted_id:
+    token = generate_token(str(result.inserted_id))
+    response = {'message': 'success', 'token': token}
+    return jsonify(response)
+  else:
+    response = {'message': 'failed'}
+    return jsonify(response)
+
+
+@app.route("/home")
+def home():
+  return 'hello' 
+
+
+@app.route("/profile", methods=['GET'])
+def profile():
+  user_email = session.get('user_email')
+  response2 = MongoDB().find_one({'email': user_email})   
+  del response2['_id']
+  del response2['password']
+  return jsonify(response2)
+
+@app.route("/login", methods=['POST'])
+def login():
+    new_record = request.json
+    user = MongoDB().find_one({'email': new_record['email']})
+    if user:
+        if bcrypt.checkpw(new_record['password'].encode('utf-8'), user['password']):
+            token = generate_token(str(user['_id']))
+            response = {'message': 'success', 'token': token}
+            create_session(str(user['email']))
+            return jsonify(response)
+        else:
+            response = {'message': 'password'}
+            return jsonify(response)
+    else:
+        response = {'message': 'username'}
+        return jsonify(response)
+
+
+@app.route("/logout", methods=['GET'])
+def logout():
+  session.clear()
+  response = {'message': 'success'}
+  return jsonify(response)
+
+
+if  __name__=="__main__":
+    app.run(debug=True)
