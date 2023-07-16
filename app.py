@@ -83,6 +83,18 @@ def login():
         response = {'message': 'username'}
         return jsonify(response)
 
+from flask import request, jsonify
+
+@app.route("/model1", methods=['POST'])
+def model1():
+    data = request.get_json()
+    if data:
+       print(data)
+       response = {'message': 'success'}
+       return jsonify(response)
+    else:
+       response = {'message': 'fail'}
+       return jsonify(response)
 
 @app.route("/logout", methods=['GET'])
 def logout():
