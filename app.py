@@ -5,7 +5,13 @@ import jwt
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+from flask import request, jsonify
+from langchain.llms import GPT4All
 load_dotenv()
+local_path = (
+    "D:/Documents/Downloads/ggml-model-gpt4all-falcon-q4_0.bin"
+)
+gpt4 = GPT4All(model=local_path)
 
 
 app = Flask(__name__)
@@ -17,7 +23,6 @@ def MongoDB():
   db = client.get_database('SlideSter')
   records = db.register
   return records
-
 
 def generate_token(user_id):
     payload = {
@@ -83,18 +88,21 @@ def login():
         response = {'message': 'username'}
         return jsonify(response)
 
-from flask import request, jsonify
 
 @app.route("/model1", methods=['POST'])
 def model1():
     data = request.get_json()
     if data:
-       print(data)
-       response = {'message': 'success'}
-       return jsonify(response)
+        print("question: ",data['value'])
+        response = gpt4.generate(prompts=[data['value']])
+        print("answwer: ",response)
+        generated_text = response.generations[0][0].text
+        print("Type of the data:- ", generated_text)
+        response = {'message': 'success', 'relevant_info': generated_text}
+        return jsonify(response)
     else:
-       response = {'message': 'fail'}
-       return jsonify(response)
+        response = {'message': 'fail'}
+        return jsonify(response)
 
 @app.route("/logout", methods=['GET'])
 def logout():
