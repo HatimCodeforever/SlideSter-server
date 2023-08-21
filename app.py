@@ -7,9 +7,15 @@ import os
 from dotenv import load_dotenv
 from flask import request, jsonify
 from langchain.llms import GPT4All
+import openai
+import re
+import ast
+
 load_dotenv()
 local_path = (
-    "D:/Documents/Downloads/ggml-model-gpt4all-falcon-q4_0.bin"
+    # "D:/Documents/Downloads/ggml-model-gpt4all-falcon-q4_0.bin"
+    # "F:/Users/Admin/Desktop/haadi/Modelsggml-model-gpt4all-falcon-q4_0.bin"
+    "C:/Users/Admin/Downloads/ggml-model-gpt4all-falcon-q4_0.bin"
 )
 gpt4 = GPT4All(model=local_path)
 
@@ -95,7 +101,7 @@ def model1():
     if data:
         print("question: ",data['value'])
         response = gpt4.generate(prompts=[data['value']])
-        print("answwer: ",response)
+        print("answer: ",response)
         generated_text = response.generations[0][0].text
         print("Type of the data:- ", generated_text)
         response = {'message': 'success', 'relevant_info': generated_text}
@@ -110,6 +116,34 @@ def logout():
   response = {'message': 'success'}
   return jsonify(response)
 
+@app.route("/suggest-titles")
+def suggest_titles():
+  topic = "GET THE TOPIC NAME HERE"
+  openai.api_key = os.getenv('OPENAI_API_KEY')
+  response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages= [
+      {
+          "role": "system",
+          "content": '''Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
+          Template:
+          ```suggested_titles = [ {suggested titles} ]```
+          '''
+      },
+      {
+          "role": "user",
+          "content": f'''{topic}'''
+      }
+    ],
+    max_tokens=450,
+    frequency_penalty=0,
+    presence_penalty=0
+    )
+  
+  rep=response.choices[0].message.content
+  re_list = re.sub('suggested_titles\s=\s',"", rep)
+  final_suggestion_list = ast.literal_eval(re_list)
+  print(final_suggestion_list)
 
 if  __name__=="__main__":
     app.run(debug=True)
