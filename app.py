@@ -6,11 +6,13 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from flask import request, jsonify
+
 import openai
 import re
 import ast
 
 load_dotenv()
+
 
 
 app = Flask(__name__)
@@ -93,6 +95,7 @@ def model1():
     data = request.get_json()
     if data:
         print("question: ",data['value'])
+        
         response = {'message': 'success', 'relevant_info': data['value']}
         return jsonify(response)
     else:
@@ -111,15 +114,16 @@ def suggest_titles():
   domain = data.get('domain')
   topic = data.get('topic')
   pages = data.get('pages')
+  topic = "GET THE TOPIC NAME HERE"
   openai.api_key = os.getenv('OPENAI_API_KEY')
   response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
     messages= [
       {
           "role": "system",
-          "content": '''Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
+          "content": f'''Create a list of {pages} slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
           Template:
-          ```suggested_titles = [ {suggested titles} ]```
+          ```suggested_titles = [{{suggested titles}} ]```. Please follow this template.
           '''
       },
       {
@@ -136,8 +140,6 @@ def suggest_titles():
   re_list = re.sub('suggested_titles\s=\s',"", rep)
   final_suggestion_list = ast.literal_eval(re_list)
   print(final_suggestion_list)
-  response_data = {'message': final_suggestion_list}
-  return jsonify(response_data)
 
 if  __name__=="__main__":
     app.run(debug=True)
