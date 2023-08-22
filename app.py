@@ -105,9 +105,12 @@ def logout():
   response = {'message': 'success'}
   return jsonify(response)
 
-@app.route("/suggest-titles")
+@app.route("/suggest-titles", methods=['POST'])
 def suggest_titles():
-  topic = "GET THE TOPIC NAME HERE"
+  data = request.get_json()
+  domain = data.get('domain')
+  topic = data.get('topic')
+  pages = data.get('pages')
   openai.api_key = os.getenv('OPENAI_API_KEY')
   response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
@@ -133,6 +136,8 @@ def suggest_titles():
   re_list = re.sub('suggested_titles\s=\s',"", rep)
   final_suggestion_list = ast.literal_eval(re_list)
   print(final_suggestion_list)
+  response_data = {'message': final_suggestion_list}
+  return jsonify(response_data)
 
 if  __name__=="__main__":
     app.run(debug=True)
