@@ -123,7 +123,7 @@ def suggest_titles():
           "role": "system",
           "content": f'''Create a list of {pages} slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
           Template:
-          ```suggested_titles = [{{suggested titles}} ]```. Please follow this template.
+          ```suggested_titles = [suggested titles]```. Please follow this template.
           '''
       },
       {
