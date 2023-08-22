@@ -6,12 +6,7 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from flask import request, jsonify
-from langchain.llms import GPT4All
 load_dotenv()
-local_path = (
-    "D:/Documents/Downloads/ggml-model-gpt4all-falcon-q4_0.bin"
-)
-gpt4 = GPT4All(model=local_path)
 
 
 app = Flask(__name__)
@@ -94,11 +89,7 @@ def model1():
     data = request.get_json()
     if data:
         print("question: ",data['value'])
-        response = gpt4.generate(prompts=[data['value']])
-        print("answwer: ",response)
-        generated_text = response.generations[0][0].text
-        print("Type of the data:- ", generated_text)
-        response = {'message': 'success', 'relevant_info': generated_text}
+        response = {'message': 'success', 'relevant_info': data['value']}
         return jsonify(response)
     else:
         response = {'message': 'fail'}
