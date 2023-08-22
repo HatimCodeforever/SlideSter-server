@@ -172,7 +172,6 @@ def generate_info():
       points_list = ast.literal_eval(re_list)
       information[topic] = points_list
       i+=1
-
   print(information)
 
 
