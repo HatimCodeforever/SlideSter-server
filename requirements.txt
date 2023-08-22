@@ -4,3 +4,4 @@ Jinja2
 PyJWT
 pymongo
 python-dotenv
+openai
