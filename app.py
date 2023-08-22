@@ -92,15 +92,13 @@ def login():
 
 @app.route("/model1", methods=['POST'])
 def model1():
-    data = request.get_json()
-    if data:
-        print("question: ",data['value'])
-        
-        response = {'message': 'success', 'relevant_info': data['value']}
-        return jsonify(response)
-    else:
-        response = {'message': 'fail'}
-        return jsonify(response)
+    data = request.json
+    titles = data.get('titles')
+    points = data.get('points')
+    print(titles)
+    print(points)
+    response = {'message': True}
+    return jsonify(response)
 
 @app.route("/logout", methods=['GET'])
 def logout():
@@ -113,10 +111,6 @@ def suggest_titles():
   data = request.get_json()
   domain = data.get('domain')
   topic = data.get('topic')
-<<<<<<< HEAD
-  pages = data.get('pages')
-=======
->>>>>>> 4ca512001a37b437ed6991dde16b708a33898c16
   openai.api_key = os.getenv('OPENAI_API_KEY')
   response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
@@ -125,7 +119,7 @@ def suggest_titles():
           "role": "system",
           "content": '''Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
           Template:
-          ```suggested_titles = [suggested titles]``` Please follow this template.
+          ```suggested_titles = [{suggested titles}]``` Please follow this template.
           '''
       },
       {
