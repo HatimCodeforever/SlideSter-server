@@ -140,6 +140,8 @@ def suggest_titles():
   re_list = re.sub('suggested_titles\s=\s',"", rep)
   final_suggestion_list = ast.literal_eval(re_list)
   print(final_suggestion_list)
+  response = {"message": final_suggestion_list}
+  return jsonify(response)
 
 if  __name__=="__main__":
     app.run(debug=True)
