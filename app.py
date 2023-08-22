@@ -114,7 +114,6 @@ def suggest_titles():
   domain = data.get('domain')
   topic = data.get('topic')
   pages = data.get('pages')
-  topic = "GET THE TOPIC NAME HERE"
   openai.api_key = os.getenv('OPENAI_API_KEY')
   response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
