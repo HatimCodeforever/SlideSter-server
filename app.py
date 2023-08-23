@@ -139,5 +139,39 @@ def suggest_titles():
   response = {"message": final_suggestion_list}
   return jsonify(response)
 
-if  __name__=="__main__":
-    app.run(debug=True)
+@app.route("/generate-info")
+def generate_info():
+  topics = ["1. Introduction to Deep Learning",
+    "2. Neural Networks and their Architecture",
+    "3. Training Deep Neural Networks",
+    "4. Types of Deep Learning Algorithms",
+]
+
+  num_points = [4,3,2,1]
+
+  i=0
+  information = {}
+  for topic in topics:
+      response = openai.ChatCompletion.create(
+      model="gpt-3.5-turbo",
+      messages= [
+        {
+            "role": "system",
+            "content": f'''Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list. Template: ```points = [ generated_information ]```
+            '''
+        }
+      ],
+      max_tokens=500,
+      frequency_penalty=0,
+      presence_penalty=0
+      )
+      rep=response.choices[0].message.content
+      re_list = re.sub('points\s=\s',"", rep)
+      points_list = ast.literal_eval(re_list)
+      information[topic] = points_list
+      i+=1
+  print(information)
+
+
+  if  __name__=="__main__":
+      app.run(debug=True)
