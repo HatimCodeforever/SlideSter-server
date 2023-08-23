@@ -1,9 +1,10 @@
-from flask import Flask,request,jsonify,session,json
+from flask import Flask, request, jsonify, session, json
 from pymongo import MongoClient
-import bcrypt 
+import bcrypt
 import jwt
 from datetime import datetime, timedelta
 import os
+from bson import ObjectId
 from dotenv import load_dotenv
 from flask import request, jsonify
 
@@ -14,164 +15,171 @@ import ast
 load_dotenv()
 
 
-
 app = Flask(__name__)
 passw = os.getenv("passw")
-app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 connection_string = f"mongodb+srv://hatim:{passw}@cluster0.f7or37n.mongodb.net/?retryWrites=true&w=majority"
-def MongoDB():
-  client = MongoClient(connection_string)
-  db = client.get_database('SlideSter')
-  records = db.register
-  return records
+
+
+def MongoDB(collection_name):
+    client = MongoClient(connection_string)
+    db = client.get_database("SlideSter")
+    records = db.get_collection(collection_name)
+    return records
+
 
 def generate_token(user_id):
-    payload = {
-        'user_id': user_id,
-        'exp': datetime.utcnow() + timedelta(hours=1)
-    }
-    token = jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
+    payload = {"user_id": user_id, "exp": datetime.utcnow() + timedelta(hours=1)}
+    token = jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
     return token
 
+
 def create_session(user_email):
-    session['user_email'] = user_email
+    session["user_email"] = user_email
 
-records = MongoDB()
-@app.route("/adduser",methods=['POST'])
+
+# records = MongoDB('register')
+
+
+@app.route("/adduser", methods=["POST"])
 def adduser():
-  new_record = request.json
-  email = new_record['email']
-  existing_user = MongoDB().find_one({'email': email})
-  if existing_user:
-      response = {'message': 'exists'}
-      return jsonify(response)
+    new_record = request.json
+    email = new_record["email"]
+    existing_user = MongoDB('register').find_one({"email": email})
+    if existing_user:
+        response = {"message": "exists"}
+        return jsonify(response)
 
-  salt = bcrypt.gensalt()
-  new_record['password'] = bcrypt.hashpw(new_record['password'].encode('utf-8'), salt)
-  result = MongoDB().insert_one(new_record)
-    
-  if result.inserted_id:
-    token = generate_token(str(result.inserted_id))
-    response = {'message': 'success', 'token': token}
-    return jsonify(response)
-  else:
-    response = {'message': 'failed'}
-    return jsonify(response)
+    salt = bcrypt.gensalt()
+    new_record["password"] = bcrypt.hashpw(new_record["password"].encode("utf-8"), salt)
+    result = MongoDB('register').insert_one(new_record)
+
+    if result.inserted_id:
+        token = generate_token(str(result.inserted_id))
+        response = {"message": "success", "token": token}
+        return jsonify(response)
+    else:
+        response = {"message": "failed"}
+        return jsonify(response)
 
 
 @app.route("/home")
 def home():
-  return 'hello' 
+    return "hello"
 
 
-@app.route("/profile", methods=['GET'])
+@app.route("/profile", methods=["GET"])
 def profile():
-  user_email = session.get('user_email')
-  response2 = MongoDB().find_one({'email': user_email})   
-  del response2['_id']
-  del response2['password']
-  return jsonify(response2)
+    user_email = session.get("user_email")
+    response2 = MongoDB('register').find_one({"email": user_email})
+    del response2["_id"]
+    del response2["password"]
+    return jsonify(response2)
 
-@app.route("/login", methods=['POST'])
+
+@app.route("/login", methods=["POST"])
 def login():
     new_record = request.json
-    user = MongoDB().find_one({'email': new_record['email']})
+    user = MongoDB('register').find_one({"email": new_record["email"]})
     if user:
-        if bcrypt.checkpw(new_record['password'].encode('utf-8'), user['password']):
-            token = generate_token(str(user['_id']))
-            response = {'message': 'success', 'token': token}
-            create_session(str(user['email']))
+        if bcrypt.checkpw(new_record["password"].encode("utf-8"), user["password"]):
+            token = generate_token(str(user["_id"]))
+            response = {"message": "success", "token": token}
+            create_session(str(user["email"]))
             return jsonify(response)
         else:
-            response = {'message': 'password'}
+            response = {"message": "password"}
             return jsonify(response)
     else:
-        response = {'message': 'username'}
+        response = {"message": "username"}
         return jsonify(response)
 
 
-@app.route("/model1", methods=['POST'])
+@app.route("/model1", methods=["POST"])
 def model1():
     data = request.json
-    titles = data.get('titles')
-    points = data.get('points')
+    titles = data.get("titles")
+    points = data.get("points")
     print(titles)
     print(points)
-    response = {'message': True}
+    ppt_data = {
+      "titles": titles,
+      "points": points
+    }
+    collection = MongoDB('ppt')
+    collection.insert_one(ppt_data)
+    response = {"message": True}
     return jsonify(response)
 
-@app.route("/logout", methods=['GET'])
-def logout():
-  session.clear()
-  response = {'message': 'success'}
-  return jsonify(response)
 
-@app.route("/suggest-titles", methods=['POST'])
+@app.route("/logout", methods=["GET"])
+def logout():
+    session.clear()
+    response = {"message": "success"}
+    return jsonify(response)
+
+
+@app.route("/suggest-titles", methods=["POST"])
 def suggest_titles():
-  data = request.get_json()
-  domain = data.get('domain')
-  topic = data.get('topic')
-  openai.api_key = os.getenv('OPENAI_API_KEY')
-  response = openai.ChatCompletion.create(
-    model="gpt-3.5-turbo",
-    messages= [
-      {
-          "role": "system",
-          "content": '''Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
+    data = request.get_json()
+    domain = data.get("domain")
+    topic = data.get("topic")
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": """Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
           Template:
           ```suggested_titles = [{suggested titles}]``` Please follow this template.
-          '''
-      },
-      {
-          "role": "user",
-          "content": f'''{topic}'''
-      }
-    ],
-    max_tokens=450,
-    frequency_penalty=0,
-    presence_penalty=0
+          """,
+            },
+            {"role": "user", "content": f"""{topic}"""},
+        ],
+        max_tokens=450,
+        frequency_penalty=0,
+        presence_penalty=0,
     )
-  
-  rep=response.choices[0].message.content
-  re_list = re.sub('suggested_titles\s=\s',"", rep)
-  final_suggestion_list = ast.literal_eval(re_list)
-  print(final_suggestion_list)
-  response = {"message": final_suggestion_list}
-  return jsonify(response)
+
+    rep = response.choices[0].message.content
+    re_list = re.sub("suggested_titles\s=\s", "", rep)
+    final_suggestion_list = ast.literal_eval(re_list)
+    print(final_suggestion_list)
+    response = {"message": final_suggestion_list}
+    return jsonify(response)
+
 
 @app.route("/generate-info")
 def generate_info():
-  topics = ["1. Introduction to Deep Learning",
-    "2. Neural Networks and their Architecture",
-    "3. Training Deep Neural Networks",
-    "4. Types of Deep Learning Algorithms",
-]
-
-  num_points = [4,3,2,1]
-
-  i=0
-  information = {}
-  for topic in topics:
+    collection = MongoDB('ppt')
+    doc = collection.find_one({'_id': ObjectId('64e5632f9a8c82b19c850c1b')})
+    topics = doc.get('titles')
+    num_points = doc.get('points')
+    i = 0
+    information = {}
+    for topic in topics:
       response = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo",
-      messages= [
-        {
-            "role": "system",
-            "content": f'''Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list. Template: ```points = [ generated_information ]```
-            '''
-        }
-      ],
-      max_tokens=500,
-      frequency_penalty=0,
-      presence_penalty=0
-      )
-      rep=response.choices[0].message.content
-      re_list = re.sub('points\s=\s',"", rep)
+          model="gpt-3.5-turbo",
+          messages=[
+                {
+                "role": "system",
+                "content": f"""Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list. Template: ```points = [ generated_information ]```
+              """,
+              }
+              ],
+          max_tokens=500,
+          frequency_penalty=0,
+          presence_penalty=0,
+        )
+      rep = response.choices[0].message.content
+      re_list = re.sub("points\s=\s", "", rep)
       points_list = ast.literal_eval(re_list)
       information[topic] = points_list
-      i+=1
-  print(information)
+      i += 1
+    print(information)
+    response = {"message": True}
+    return jsonify(response)
 
-
-  if  __name__=="__main__":
-      app.run(debug=True)
+if __name__ == "__main__":
+  app.run(debug=True)
