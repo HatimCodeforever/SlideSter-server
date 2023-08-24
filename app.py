@@ -178,7 +178,7 @@ def generate_info():
           messages=[
                 {
                 "role": "system",
-                "content": f"""Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```
+                "content": f"""Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```. You have to strictly follow this template. Output Example: ```points = ["Point 1","Point 2", ... ]```
               """,
               }
               ],
