@@ -122,85 +122,114 @@ def logout():
 
 @app.route("/suggest-titles", methods=["POST"])
 def suggest_titles():
-    # data = request.get_json()
-    # domain = data.get("domain")
-    # topic = data.get("topic")
-    # openai.api_key = os.getenv("OPENAI_API_KEY")
-    # response = openai.ChatCompletion.create(
-    #     model="gpt-3.5-turbo",
-    #     messages=[
-    #         {
-    #             "role": "system",
-    #             "content": """Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
-    #       Template:
-    #       ```suggested_titles = [{suggested titles}]``` Please follow this template.
-    #       """,
-    #         },
-    #         {"role": "user", "content": f"""{topic}"""},
-    #     ],
-    #     max_tokens=450,
-    #     frequency_penalty=0,
-    #     presence_penalty=0,
-    # )
+    data = request.get_json()
+    domain = data.get("domain")
+    topic = data.get("topic")
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": """Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
+          Template:
+          ```suggested_titles = [{suggested titles}]``` Please follow this template.
+          """,
+            },
+            {"role": "user", "content": f"""{topic}"""},
+        ],
+        max_tokens=450,
+        frequency_penalty=0,
+        presence_penalty=0,
+    )
 
-    # rep = response.choices[0].message.content
-    # re_list = re.sub("suggested_titles\s=\s", "", rep)
-    # final_suggestion_list = ast.literal_eval(re_list)
-    # print(final_suggestion_list)
-    final_suggestion_list = [
-    'Introduction', 'Applications', 'Types of Machine Learning',
-    'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
-    'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
-    'Future Trends'
-    ]
+    rep = response.choices[0].message.content
+    re_list = re.sub("suggested_titles\s=\s", "", rep)
+    final_suggestion_list = ast.literal_eval(re_list)
+    print(final_suggestion_list)
+    # final_suggestion_list = [
+    # 'Introduction', 'Applications', 'Types of Machine Learning',
+    # 'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
+    # 'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
+    # 'Future Trends'
+    # ]
     response = {"message": final_suggestion_list}
     return jsonify(response)
+
+@app.route('/generate-new-info', methods=['POST'])
+def generate_info_new():
+    # Get the topic from the request sent by the React app
+    data = request.get_json()
+    topic = data.get('topic')
+    information ={}
+    response = openai.ChatCompletion.create(
+          model="gpt-3.5-turbo",
+          messages=[
+                {
+                "role": "system",
+                "content": f"""Generate 5 points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```. You have to strictly follow this template. Output Example: ```points = ["Point 1","Point 2", ... ]```
+              """,
+              }
+              ],
+          max_tokens=500,
+          frequency_penalty=0,
+          presence_penalty=0,
+        )
+    rep = response.choices[0].message.content
+    re_list = re.sub("points\s=\s", "", rep)
+    points_list = ast.literal_eval(re_list)
+    information[topic] = points_list
+    information_list = list(information.items())
+    keys = list(information.keys())
+    print(information_list)
+    return jsonify({"key": keys, "information": information_list})
 
 
 @app.route("/generate-info")
 def generate_info():
     print("It generating......................")
-    # collection = MongoDB('ppt')
-    # doc = collection.find_one({'_id': ObjectId(session['info_id'])})
-    # topics = doc.get('titles')
-    # num_points = doc.get('points')
-    # i = 0
-    # information = {}
-    information = {
-    'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
-    'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
-    'Image Processing Techniques': ['Image processing techniques are used to enhance images and extract useful information from them.', 'Some common image processing techniques include image filtering, edge detection, image segmentation, and image morphology.', 'Image filtering can be used to remove noise from images or blur them.It involves applying a filter to each pixel in the image.', 'Edge detection techniques aim to find the boundaries of objects in an image by detecting abrupt changes in intensity.', 'Image segmentation techniques divide an image into regions or objects of interest based on their characteristics, such as color or texture.'],
-    'Object Recognition and Classification': ['Object recognition and classification is the technology that allows computers to identify and categorize objects in images or videos.', 'It is an important component of many applications, such as self - driving cars, surveillance systems, and medical imaging.', 'Common approaches to object recognition and classification include deep learning - based methods, such as convolutional neural networks(CNNs).', 'These methods often require large annotated datasets for training, where objects in the images / videos are manually labeled with their corresponding classes.', 'Object recognition and classification can be challenging due to variations in lighting, viewpoint, occlusion, and object appearance.'],
-    'Object Tracking in Computer Vision': ['Object tracking is the process of locating and following a specific object in a video or sequence of images.', 'It is a challenging task in computer vision due to factors such as viewpoint changes, occlusions, and appearance variations.', 'Object tracking algorithms can be categorized into two main types: online and offline.', 'Online tracking algorithms operate in real - time and track objects in a frame - by - frame manner.', 'Offline tracking algorithms require access to the entire video sequence and can perform more complex tracking tasks.'],
-    'Segmentation and Image Analysis': ['Segmentation is the process of dividing an image into multiple segments to simplify the image and make it easier to analyze.', 'Image analysis refers to the process of extracting meaningful information from an image, such as object recognition or measuring certain properties of the image.', 'Segmentation techniques can be based on various criteria, such as color, texture, or shape.', 'Image analysis can be used in various fields, such as medical imaging, surveillance, and computer vision.', 'Both segmentation and image analysis are important techniques in computer vision for understanding and extracting information from images.'], 
-    'Applications of Computer Vision in Robotics': ['Computer Vision is used in robotics for object detection and recognition, allowing robots to identify and interact with objects in their environment.', 'Computer Vision can be used to track and follow objects or people, enabling robots to perform tasks such as surveillance or guiding people in public spaces.', 'Computer Vision is used in navigation systems for robots, allowing them to perceive and interpret their surroundings to plan and execute their movements.', 'Computer Vision is used for robot localization and mapping, allowing robots to build a representation of their environment and determine their position within it.', 'Computer Vision is used in robot - assisted surgeries, providing surgeons with enhanced visual information and real - time feedback during procedures.'],
-    'Deep Learning in Computer Vision': ['Deep learning is a subfield of machine learning that focuses on training artificial neural networks with multiple layers to solve complex problems in computer vision.', 'Convolutional Neural Networks(CNNs) are commonly used in deep learning for computer vision tasks, as they are designed to effectively process and extract features from visual data.', 'Transfer learning is widely used in deep learning for computer vision, where pre - trained models on large datasets are used as a starting point for training new models on smaller, specific datasets.', 'Deep learning models for computer vision have achieved remarkable results in image classification, object detection, image segmentation, and image generation tasks.', 'Popular deep learning frameworks like TensorFlow, PyTorch, and Keras have extensive support for computer vision tasks and provide pre - built architectures and tools to facilitate deep learning in this domain.'],
-    'Challenges in Computer Vision': ['Limited labeled data for training models.', 'Difficulty in handling variations in lighting and perspective.', 'Complexity in identifying and recognizing objects in cluttered scenes.', 'Challenges in accurately segmenting and extracting object boundaries.', 'Handling occlusions and partial visibility of objects.'],
-    'Future Trends in Computer Vision': ['The use of computer vision in various industries such as healthcare, retail, and automotive is expected to continue growing rapidly.', 'Advances in deep learning algorithms have significantly improved the accuracy and efficiency of computer vision systems.', 'Real-time object detection and tracking will become more common, allowing for a wide range of applications such as autonomous vehicles and surveillance systems.', 'Computer vision technology will increasingly be integrated with other emerging technologies such as augmented reality and virtual reality.', 'The use of computer vision for facial recognition and emotion detection is likely to become more prevalent, raising privacy and ethical concerns.']
-    }
-    # for topic in topics:
-    #   response = openai.ChatCompletion.create(
-    #       model="gpt-3.5-turbo",
-    #       messages=[
-    #             {
-    #             "role": "system",
-    #             "content": f"""Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```. You have to strictly follow this template. Output Example: ```points = ["Point 1","Point 2", ... ]```
-    #           """,
-    #           }
-    #           ],
-    #       max_tokens=500,
-    #       frequency_penalty=0,
-    #       presence_penalty=0,
-    #     )
-    #   rep = response.choices[0].message.content
-    #   print("Rep:- ",rep)
-    #   re_list = re.sub("points\s=\s", "", rep)
-    #   points_list = ast.literal_eval(re_list)
-    #   information[topic] = points_list
-    #   i += 1
+    collection = MongoDB('ppt')
+    doc = collection.find_one({'_id': ObjectId(session['info_id'])})
+    topics = doc.get('titles')
+    num_points = doc.get('points')
+    i = 0
+    information = {}
+    # information = {
+    # 'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
+    # 'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
+    # 'Image Processing Techniques': ['Image processing techniques are used to enhance images and extract useful information from them.', 'Some common image processing techniques include image filtering, edge detection, image segmentation, and image morphology.', 'Image filtering can be used to remove noise from images or blur them.It involves applying a filter to each pixel in the image.', 'Edge detection techniques aim to find the boundaries of objects in an image by detecting abrupt changes in intensity.', 'Image segmentation techniques divide an image into regions or objects of interest based on their characteristics, such as color or texture.'],
+    # 'Object Recognition and Classification': ['Object recognition and classification is the technology that allows computers to identify and categorize objects in images or videos.', 'It is an important component of many applications, such as self - driving cars, surveillance systems, and medical imaging.', 'Common approaches to object recognition and classification include deep learning - based methods, such as convolutional neural networks(CNNs).', 'These methods often require large annotated datasets for training, where objects in the images / videos are manually labeled with their corresponding classes.', 'Object recognition and classification can be challenging due to variations in lighting, viewpoint, occlusion, and object appearance.'],
+    # 'Object Tracking in Computer Vision': ['Object tracking is the process of locating and following a specific object in a video or sequence of images.', 'It is a challenging task in computer vision due to factors such as viewpoint changes, occlusions, and appearance variations.', 'Object tracking algorithms can be categorized into two main types: online and offline.', 'Online tracking algorithms operate in real - time and track objects in a frame - by - frame manner.', 'Offline tracking algorithms require access to the entire video sequence and can perform more complex tracking tasks.'],
+    # 'Segmentation and Image Analysis': ['Segmentation is the process of dividing an image into multiple segments to simplify the image and make it easier to analyze.', 'Image analysis refers to the process of extracting meaningful information from an image, such as object recognition or measuring certain properties of the image.', 'Segmentation techniques can be based on various criteria, such as color, texture, or shape.', 'Image analysis can be used in various fields, such as medical imaging, surveillance, and computer vision.', 'Both segmentation and image analysis are important techniques in computer vision for understanding and extracting information from images.'], 
+    # 'Applications of Computer Vision in Robotics': ['Computer Vision is used in robotics for object detection and recognition, allowing robots to identify and interact with objects in their environment.', 'Computer Vision can be used to track and follow objects or people, enabling robots to perform tasks such as surveillance or guiding people in public spaces.', 'Computer Vision is used in navigation systems for robots, allowing them to perceive and interpret their surroundings to plan and execute their movements.', 'Computer Vision is used for robot localization and mapping, allowing robots to build a representation of their environment and determine their position within it.', 'Computer Vision is used in robot - assisted surgeries, providing surgeons with enhanced visual information and real - time feedback during procedures.'],
+    # 'Deep Learning in Computer Vision': ['Deep learning is a subfield of machine learning that focuses on training artificial neural networks with multiple layers to solve complex problems in computer vision.', 'Convolutional Neural Networks(CNNs) are commonly used in deep learning for computer vision tasks, as they are designed to effectively process and extract features from visual data.', 'Transfer learning is widely used in deep learning for computer vision, where pre - trained models on large datasets are used as a starting point for training new models on smaller, specific datasets.', 'Deep learning models for computer vision have achieved remarkable results in image classification, object detection, image segmentation, and image generation tasks.', 'Popular deep learning frameworks like TensorFlow, PyTorch, and Keras have extensive support for computer vision tasks and provide pre - built architectures and tools to facilitate deep learning in this domain.'],
+    # 'Challenges in Computer Vision': ['Limited labeled data for training models.', 'Difficulty in handling variations in lighting and perspective.', 'Complexity in identifying and recognizing objects in cluttered scenes.', 'Challenges in accurately segmenting and extracting object boundaries.', 'Handling occlusions and partial visibility of objects.'],
+    # 'Future Trends in Computer Vision': ['The use of computer vision in various industries such as healthcare, retail, and automotive is expected to continue growing rapidly.', 'Advances in deep learning algorithms have significantly improved the accuracy and efficiency of computer vision systems.', 'Real-time object detection and tracking will become more common, allowing for a wide range of applications such as autonomous vehicles and surveillance systems.', 'Computer vision technology will increasingly be integrated with other emerging technologies such as augmented reality and virtual reality.', 'The use of computer vision for facial recognition and emotion detection is likely to become more prevalent, raising privacy and ethical concerns.']
+    # }
+    for topic in topics:
+      response = openai.ChatCompletion.create(
+          model="gpt-3.5-turbo",
+          messages=[
+                {
+                "role": "system",
+                "content": f"""Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```. You have to strictly follow this template. Output Example: ```points = ["Point 1","Point 2", ... ]```
+              """,
+              }
+              ],
+          max_tokens=500,
+          frequency_penalty=0,
+          presence_penalty=0,
+        )
+      rep = response.choices[0].message.content
+      print("Rep:- ",rep)
+      re_list = re.sub("points\s=\s", "", rep)
+      points_list = ast.literal_eval(re_list)
+      information[topic] = points_list
+      i += 1
     # print(information)
     information_list = list(information.items())
     keys = list(information.keys())
+    print(information_list)
     return jsonify({"keys": keys, "information": information_list})
 
 if __name__ == "__main__":
