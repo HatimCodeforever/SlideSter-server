@@ -11,7 +11,7 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles, generate_point_info
+from utils import generate_slide_titles, generate_point_info, fetch_images_from_web
 
 load_dotenv()
 
@@ -150,7 +150,7 @@ def generate_new_info():
 
 @app.route("/generate-info")
 def generate_info():
-    print("It generating......................")
+    print("Generating....")
     collection = MongoDB('ppt')
     doc = collection.find_one({'_id': ObjectId(session['info_id'])})
     topics = doc.get('titles')
@@ -175,6 +175,17 @@ def generate_info():
     print(information)
     keys = list(information.keys())
     return jsonify({"keys": keys, "information": information})
+
+@app.route('/fetch-images', methods=['POST'])
+def fetch_images():
+    data = request.get_json()
+    topics = data.get('topic')
+    all_images = {}
+    for topic in topics:
+        images = fetch_images_from_web(topic)
+        all_images[topic] = images
+
+    return jsonify({"images": all_images})
 
 if __name__ == "__main__":
   app.run(debug=True)

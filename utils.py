@@ -1,7 +1,9 @@
 import openai
 from openai import OpenAI
+from tavily import TavilyClient
 import os
 import ast
+import torch
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -43,3 +45,9 @@ Topic : {topic}
     output = ast.literal_eval(completion.choices[0].message.content)
 
     return output
+
+def fetch_images_from_web(topic):
+    tavily_client = TavilyClient(api_key=os.getenv('TAVILY_API_KEY'))
+    search_results = tavily_client.search(topic, search_depth="advanced",include_images=True)
+    images = search_results['images']
+    return images
