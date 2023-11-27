@@ -13,6 +13,7 @@ import re
 import ast
 from utils import generate_slide_titles, generate_point_info, fetch_images_from_web
 import torch
+import time
 
 load_dotenv()
 
@@ -22,6 +23,7 @@ passw = os.getenv("passw")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 connection_string = f"mongodb+srv://hatim:{passw}@cluster0.f7or37n.mongodb.net/?retryWrites=true&w=majority"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+openai.api_key = os.getenv('OPENAI_API_KEY')
     
 
 def MongoDB(collection_name):
@@ -186,37 +188,60 @@ def fetch_images():
 
     return jsonify({"images": all_images})
 
+
+def wait_on_run(run, thread):
+    client = OpenAI()
+    while True:
+        run = client.beta.threads.runs.retrieve(
+            thread_id=thread.id,
+            run_id=run.id,
+        )
+        print('RUN STATUS', run.status)
+        time.sleep(0.5)
+        if run.status in ['failed', 'completed', 'requires_action']:
+            return run
+
 @app.route('/chatbot-route', methods=['POST'])
 def chatbot_route():
-    try:
-        data = request.get_json()
-        print(data)
-        query = data.get('userdata', '')
-        if query:
-            # Call the chatbot logic
-            
-            client = OpenAI()
-            assistant = client.beta.assistants.create(
-            name="SLIDESTER",
-            # instructions="You are a personal math tutor. Answer questions briefly, in a sentence or less.",
-            model="gpt-3.5-turbo-1106",
-            )
-            assis_json = json.loads(assistant.model_dump_json())
-            assistant_id = assis_json.id
-            message = client.beta.threads.messages.create(
-            thread_id=assistant_id,
+    data = request.get_json()
+    print(data)
+    query = data.get('userdata', '')
+    client = OpenAI()
+    assistant = client.beta.assistants.create(
+        name="SLIDESTER",
+        # instructions="You are a personal math tutor. Answer questions briefly, in a sentence or less.",
+        model="gpt-3.5-turbo-1106",
+)
+    print('ASSITANT:',assistant)
+    if query:         
+        # assistant_json = json.loads(assistant.model_dump_json())
+        assistant_id = assistant.id
+        print(assistant_id)
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+        print('THREAD ID', thread_id)
+        message = client.beta.threads.messages.create(
+            thread_id= thread_id,
             role="user",
-            content="I need to solve the equation `3x + 11 = 14`. Can you help me?",
-            )
-            print("assistant_Data",assis_json)
-            chatbot_reply = "hey there you image has been added you mother fucker"
+            content= query,
+        )
 
-            # Return the chatbot response
-            return jsonify({'chatbotResponse': chatbot_reply})
-        else:
-            return jsonify({'error': 'User message not provided'}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        run = client.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
+        )
+
+        run = wait_on_run(run, thread)
+        
+        messages = client.beta.threads.messages.list(thread_id=thread.id)
+        print(messages.data[0].content[0])
+        chatbot_reply = messages.data[0].content[0].text.value
+
+        # Return the chatbot response
+        return jsonify({'chatbotResponse': chatbot_reply})
+    else:
+        return jsonify({'error': 'User message not provided'}), 400
+    
     
     
 
