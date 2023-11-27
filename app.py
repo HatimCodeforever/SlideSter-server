@@ -173,10 +173,14 @@ def generate_info():
     for topic in topics:
         output = generate_point_info(topic=topic, n_points=num_points)
         information[topic] = list(output.values())[0]
-
+    all_images = {}
+    for topic in topics:
+        images = fetch_images_from_web(topic)
+        all_images[topic] = images
     print(information)
     keys = list(information.keys())
-    return jsonify({"keys": keys, "information": information})
+    print(all_images)
+    return jsonify({"keys": keys, "information": information, "images": all_images})
 
 @app.route('/fetch-images', methods=['POST'])
 def fetch_images():
