@@ -169,29 +169,11 @@ def generate_info():
     # }
     information = {}
     for topic in topics:
-      response = openai.ChatCompletion.create(
-          model="gpt-3.5-turbo",
-          messages=[
-                {
-                "role": "system",
-                "content": f"""Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```. You have to strictly follow this template. Output Example: ```points = ["Point 1","Point 2", ... ]```
-              """,
-              }
-              ],
-          max_tokens=500,
-          frequency_penalty=0,
-          presence_penalty=0,
-        )
-      rep = response.choices[0].message.content
-      print("Rep:- ",rep)
-      re_list = re.sub("points\s=\s", "", rep)
-      points_list = ast.literal_eval(re_list)
-      information[topic] = points_list
-      i += 1
+        output = generate_point_info(topic=topic, n_points=num_points)
+        information[topic] = list(output.values())[0]
+
     print(information)
-    information_list = list(information.items())
     keys = list(information.keys())
-    # print(information_list)
     return jsonify({"keys": keys, "information": information})
 
 @app.route('/chatbot-route', methods=['POST'])
@@ -212,7 +194,7 @@ def chatbot_route():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-    return jsonify({"keys": keys, "information": information})
+    
 
 if __name__ == "__main__":
   app.run(debug=True)

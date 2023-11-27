@@ -2,7 +2,7 @@ import openai
 from openai import OpenAI
 import os
 import ast
-
+import time
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def generate_slide_titles(topic):
@@ -41,5 +41,5 @@ Topic : {topic}
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
-
+    time.sleep(25)
     return output
