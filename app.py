@@ -11,7 +11,7 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles, generate_point_info, fetch_images_from_web
+from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info
 import torch
 import time
 
@@ -151,6 +151,37 @@ def generate_new_info():
     keys = list(information.keys())
     return jsonify({"key": keys, "information": information})
 
+tools = [
+    {
+        'type': 'function',
+        'function':{
+            'name': 'generate_information',
+            'description': 'generates and adds information when given a topic and a slide number',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'topic': {
+                        'type': 'string',
+                        'description': 'The topic on which the content is to be generated. For Example: Introduction to Machine Learning'
+                    },
+                    'slide_number' :{
+                        'type': 'string',
+                        'description': 'The slide number at which the content is to be added. For Example: slide number 5'
+                    },
+                    'n_points' :{
+                        'type': 'string',
+                        'description': 'The number of points of information to be generated, default is 5.'
+                    }
+                },
+                'required': ['topic', 'slide_number', 'n_points']
+            }
+        }
+    },
+]
+
+available_tools = {
+    'generate_information': chat_generate_point_info
+}
 
 @app.route("/generate-info")
 def generate_info():
@@ -178,52 +209,67 @@ def generate_info():
     client = OpenAI()
     assistant = client.beta.assistants.create(
         name="SLIDESTER",
-        # instructions="You are a personal math tutor. Answer questions briefly, in a sentence or less.",
+        instructions="You are a helpful assistant. Use the tools provided to you to help the user. Ask the user for clarification if insuffient information is provided to use the tool. Do not assume anything on your own",
         model="gpt-3.5-turbo-1106",
+        tools =  tools
     )
     session['assistant_id'] = assistant.id
     print('ASSITANT:',assistant)
     return jsonify({"keys": keys, "information": information, "images": all_images})
 
-@app.route('/fetch-images', methods=['POST'])
-def fetch_images():
-    data = request.get_json()
-    topics = data.get('topic')
-    all_images = {}
-    for topic in topics:
-        images = fetch_images_from_web(topic)
-        all_images[topic] = images
-
-    return jsonify({"images": all_images})
-
-
-def wait_on_run(run, thread):
+def wait_on_run(run_id, thread_id):
     client = OpenAI()
     while True:
         run = client.beta.threads.runs.retrieve(
-            thread_id=thread.id,
-            run_id=run.id,
+            thread_id=thread_id,
+            run_id=run_id,
         )
         print('RUN STATUS', run.status)
         time.sleep(0.5)
         if run.status in ['failed', 'completed', 'requires_action']:
             return run
+        
+def get_tool_result(thread_id, run_id, tools_to_call):
+    tools_outputs = []
+    for tool in tools_to_call:
+        output = None
+        tool_call_id = tool.id
+        tool_name = tool.function.name
+        tool_args = tool.function.arguments
+        print('TOOL CALLED:',tool_name)
+        print('ARGUMENTS:', tool_args)
 
+        if tool_name == 'generate_information':
+            tool_to_call = available_tools.get(tool_name)
+            topic = json.loads(tool_args)['topic']
+            n_points = json.loads(tool_args)['n_points']
+            output = tool_to_call(topic= topic, n_points= n_points)
+
+            print('OUTPUT:',output)
+
+        if output:
+            tools_outputs.append({'tool_call_id': tool_call_id, 'output': output})
+        
 @app.route('/chatbot-route', methods=['POST'])
 def chatbot_route():
     data = request.get_json()
     print(data)
     query = data.get('userdata', '')
     if query:         
-        # assistant_json = json.loads(assistant.model_dump_json())
         client = OpenAI()
         assistant_id = session['assistant_id']
-        print(assistant_id)
+        print('ASSISTANT ID',assistant_id)
         thread = client.beta.threads.create()
-        thread_id = thread.id
-        print('THREAD ID', thread_id)
+        print('THREAD ID', thread.id)
+
+        # client.beta.threads.messages.create(
+        #     thread_id= thread.id,
+        #     role="system",
+        #     content= "Use the tools provided to you to help the user. Ask for any information if required. Don't assume anything on your own",
+        # )
+
         message = client.beta.threads.messages.create(
-            thread_id= thread_id,
+            thread_id= thread.id,
             role="user",
             content= query,
         )
@@ -233,7 +279,14 @@ def chatbot_route():
             assistant_id=session['assistant_id'],
         )
 
-        run = wait_on_run(run, thread)
+        run = wait_on_run(run.id, thread.id)
+
+        if run.status == 'failed':
+            print(run.error)
+        elif run.status == 'requires_action':
+            run = get_tool_result(thread.id, run.id, run.required_action.submit_tool_outputs.tool_calls)
+            # run = wait_for_run_completion(thread.id, run.id)
+            print('HELLO')
         
         messages = client.beta.threads.messages.list(thread_id=thread.id)
         print(messages.data[0].content[0])
