@@ -226,11 +226,29 @@ def generate_info():
       points_list = ast.literal_eval(re_list)
       information[topic] = points_list
       i += 1
-    # print(information)
+    print(information)
     information_list = list(information.items())
     keys = list(information.keys())
-    print(information_list)
-    return jsonify({"keys": keys, "information": information_list})
+    # print(information_list)
+    return jsonify({"keys": keys, "information": information})
 
+@app.route('/chatbot-route', methods=['POST'])
+def chatbot_route():
+    try:
+        data = request.get_json()
+        print(data)
+        user_message = data.get('userdata', '')
+
+        if user_message:
+            # Call the chatbot logic
+            chatbot_reply = "hey there you image has been added you mother fucker"
+
+            # Return the chatbot response
+            return jsonify({'chatbotResponse': chatbot_reply})
+        else:
+            return jsonify({'error': 'User message not provided'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 if __name__ == "__main__":
   app.run(debug=True)
