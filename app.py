@@ -21,7 +21,7 @@ app = Flask(__name__)
 passw = os.getenv("passw")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 connection_string = f"mongodb+srv://hatim:{passw}@cluster0.f7or37n.mongodb.net/?retryWrites=true&w=majority"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
 
 def MongoDB(collection_name):

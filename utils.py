@@ -8,10 +8,12 @@ from diffusers import DiffusionPipeline, LCMScheduler
 import requests
 import io
 from PIL import Image
+import torch
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def generate_slide_titles(topic):
     client = OpenAI()
@@ -58,7 +60,7 @@ def fetch_images_from_web(topic):
     images = search_results['images']
     return images
 
-def generate_image(prompt, device_type):
+def generate_image(prompt):
     image_path = prompt + '.png'
     if device_type == 'cuda':
         image_gen_model = DiffusionPipeline.from_pretrained(
