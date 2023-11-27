@@ -5,3 +5,4 @@ PyJWT
 pymongo
 python-dotenv
 openai
+torch
