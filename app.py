@@ -142,28 +142,10 @@ def suggest_titles():
 def generate_new_info():
     data = request.get_json()
     topic = data.get('topic')
-    information ={}
-    response = openai.ChatCompletion.create(
-          model="gpt-3.5-turbo",
-          messages=[
-                {
-                "role": "system",
-                "content": f"""Generate 5 points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```. You have to strictly follow this template. Output Example: ```points = ["Point 1","Point 2", ... ]```
-              """,
-              }
-              ],
-          max_tokens=500,
-          frequency_penalty=0,
-          presence_penalty=0,
-        )
-    rep = response.choices[0].message.content
-    re_list = re.sub("points\s=\s", "", rep)
-    points_list = ast.literal_eval(re_list)
-    information[topic] = points_list
-    information_list = list(information.items())
+    information = generate_point_info(topic=topic)
+    print(information)
     keys = list(information.keys())
-    print(information_list)
-    return jsonify({"key": keys, "information": information_list})
+    return jsonify({"key": keys, "information": information})
 
 
 @app.route("/generate-info")
