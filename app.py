@@ -12,6 +12,7 @@ from openai import OpenAI
 import re
 import ast
 from utils import generate_slide_titles, generate_point_info, fetch_images_from_web
+import torch
 
 load_dotenv()
 
@@ -20,6 +21,7 @@ app = Flask(__name__)
 passw = os.getenv("passw")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 connection_string = f"mongodb+srv://hatim:{passw}@cluster0.f7or37n.mongodb.net/?retryWrites=true&w=majority"
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def MongoDB(collection_name):

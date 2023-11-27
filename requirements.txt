@@ -7,3 +7,9 @@ python-dotenv
 openai
 torch
 tavily-python
+transformers
+accelerate
+safetensors
+invisible_watermark
+peft
+diffusers

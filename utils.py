@@ -4,9 +4,14 @@ from tavily import TavilyClient
 import os
 import ast
 import torch
-import time
+from diffusers import DiffusionPipeline, LCMScheduler
+import requests
+import io
+from PIL import Image
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
+auth_token = os.getenv('HUGGINGFACE_API_KEY')
+SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 
 def generate_slide_titles(topic):
     client = OpenAI()
@@ -52,3 +57,38 @@ def fetch_images_from_web(topic):
     search_results = tavily_client.search(topic, search_depth="advanced",include_images=True)
     images = search_results['images']
     return images
+
+def generate_image(prompt, device_type):
+    image_path = prompt + '.png'
+    if device_type == 'cuda':
+        image_gen_model = DiffusionPipeline.from_pretrained(
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            variant="fp16",
+            torch_dtype=torch.float16,
+            use_auth_token = auth_token
+        ).to("cuda")
+
+        # SET SCHEDULER
+        image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
+
+        # LOAD LCM-LoRA
+        image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
+
+        # SEED FOR CONSISTENT OUTPUT
+        generator = torch.manual_seed(42)
+        image = image_gen_model(
+            prompt=prompt, num_inference_steps=4, generator=generator, guidance_scale=1.0
+        ).images[0]
+
+        image.save(image_path)
+    
+    else:
+        headers = {"Authorization": "Bearer "+ auth_token}
+        payload = {'inputs': prompt}
+        response = requests.post(SDXL_API_URL, headers=headers, json = payload)
+
+        image_bytes = response.content
+        image = Image.open(io.BytesIO(image_bytes)) 
+        image.save(image_path)
+
+    return image_path
