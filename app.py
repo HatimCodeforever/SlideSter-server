@@ -169,8 +169,8 @@ def generate_info():
     # }
     information = {}
     for topic in topics:
-      output = generate_point_info(topic=topic, n_points=num_points)
-      information[topic] = list(output.values())[0]
+        output = generate_point_info(topic=topic, n_points=num_points)
+        information[topic] = list(output.values())[0]
 
     print(information)
     keys = list(information.keys())
@@ -186,6 +186,26 @@ def fetch_images():
         all_images[topic] = images
 
     return jsonify({"images": all_images})
+
+@app.route('/chatbot-route', methods=['POST'])
+def chatbot_route():
+    try:
+        data = request.get_json()
+        print(data)
+        user_message = data.get('userdata', '')
+
+        if user_message:
+            # Call the chatbot logic
+            chatbot_reply = "hey there you image has been added you mother fucker"
+
+            # Return the chatbot response
+            return jsonify({'chatbotResponse': chatbot_reply})
+        else:
+            return jsonify({'error': 'User message not provided'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+    
 
 if __name__ == "__main__":
   app.run(debug=True)
