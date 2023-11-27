@@ -9,6 +9,8 @@ import requests
 import io
 from PIL import Image
 import torch
+import json
+
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
@@ -94,3 +96,5 @@ def generate_image(prompt):
         image.save(image_path)
 
     return image_path
+
+
