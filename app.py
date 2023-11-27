@@ -7,10 +7,11 @@ import os
 from bson import ObjectId
 from dotenv import load_dotenv
 from flask import request, jsonify
-
 import openai
+from openai import OpenAI
 import re
 import ast
+from utils import generate_slide_titles, generate_point_info
 
 load_dotenv()
 
@@ -125,40 +126,20 @@ def suggest_titles():
     data = request.get_json()
     domain = data.get("domain")
     topic = data.get("topic")
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system",
-                "content": """Create a list of 10 slide titles for a PowerPoint presentation. You will be given a topic, and your task is to suggest slide titles that could be included in the presentation. For instance, you might suggest titles like 'Introduction' or 'Advantages.' Your goal is to return a list of slide topics that should be relevant and informative for the given presentation topic. Refrain from adding any other irrelevant information or text besides the list in the response.
-          Template:
-          ```suggested_titles = [{suggested titles}]``` Please follow this template.
-          """,
-            },
-            {"role": "user", "content": f"""{topic}"""},
-        ],
-        max_tokens=450,
-        frequency_penalty=0,
-        presence_penalty=0,
-    )
-
-    rep = response.choices[0].message.content
-    re_list = re.sub("suggested_titles\s=\s", "", rep)
-    final_suggestion_list = ast.literal_eval(re_list)
-    print(final_suggestion_list)
+    output = generate_slide_titles(topic)
+    response_list = list(output.values())
+    print(response_list)
     # final_suggestion_list = [
     # 'Introduction', 'Applications', 'Types of Machine Learning',
     # 'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
     # 'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
     # 'Future Trends'
     # ]
-    response = {"message": final_suggestion_list}
+    response = {"message": response_list}
     return jsonify(response)
 
 @app.route('/generate-new-info', methods=['POST'])
-def generate_info_new():
-    # Get the topic from the request sent by the React app
+def generate_new_info():
     data = request.get_json()
     topic = data.get('topic')
     information ={}
@@ -192,8 +173,6 @@ def generate_info():
     doc = collection.find_one({'_id': ObjectId(session['info_id'])})
     topics = doc.get('titles')
     num_points = doc.get('points')
-    i = 0
-    information = {}
     # information = {
     # 'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
     # 'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
@@ -206,31 +185,14 @@ def generate_info():
     # 'Challenges in Computer Vision': ['Limited labeled data for training models.', 'Difficulty in handling variations in lighting and perspective.', 'Complexity in identifying and recognizing objects in cluttered scenes.', 'Challenges in accurately segmenting and extracting object boundaries.', 'Handling occlusions and partial visibility of objects.'],
     # 'Future Trends in Computer Vision': ['The use of computer vision in various industries such as healthcare, retail, and automotive is expected to continue growing rapidly.', 'Advances in deep learning algorithms have significantly improved the accuracy and efficiency of computer vision systems.', 'Real-time object detection and tracking will become more common, allowing for a wide range of applications such as autonomous vehicles and surveillance systems.', 'Computer vision technology will increasingly be integrated with other emerging technologies such as augmented reality and virtual reality.', 'The use of computer vision for facial recognition and emotion detection is likely to become more prevalent, raising privacy and ethical concerns.']
     # }
+    information = {}
     for topic in topics:
-      response = openai.ChatCompletion.create(
-          model="gpt-3.5-turbo",
-          messages=[
-                {
-                "role": "system",
-                "content": f"""Generate {num_points[i]} points of information on {topic}. The points should be short and comprehensive. Your response should strictly be a python list and avoid using double or single qoutes within an element of the list. Template: ```points = [ generated_information ]```. You have to strictly follow this template. Output Example: ```points = ["Point 1","Point 2", ... ]```
-              """,
-              }
-              ],
-          max_tokens=500,
-          frequency_penalty=0,
-          presence_penalty=0,
-        )
-      rep = response.choices[0].message.content
-      print("Rep:- ",rep)
-      re_list = re.sub("points\s=\s", "", rep)
-      points_list = ast.literal_eval(re_list)
-      information[topic] = points_list
-      i += 1
-    # print(information)
-    information_list = list(information.items())
+      output = generate_point_info(topic=topic, n_points=num_points)
+      information[topic] = list(output.values())[0]
+
+    print(information)
     keys = list(information.keys())
-    print(information_list)
-    return jsonify({"keys": keys, "information": information_list})
+    return jsonify({"keys": keys, "information": information})
 
 if __name__ == "__main__":
   app.run(debug=True)
