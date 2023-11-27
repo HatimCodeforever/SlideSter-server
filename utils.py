@@ -8,6 +8,8 @@ from diffusers import DiffusionPipeline, LCMScheduler
 import requests
 import io
 from PIL import Image
+import json
+
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
@@ -92,3 +94,5 @@ def generate_image(prompt, device_type):
         image.save(image_path)
 
     return image_path
+
+
