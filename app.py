@@ -175,6 +175,14 @@ def generate_info():
     # print(information)
     keys = list(information.keys())
     # print(all_images)
+    client = OpenAI()
+    assistant = client.beta.assistants.create(
+        name="SLIDESTER",
+        # instructions="You are a personal math tutor. Answer questions briefly, in a sentence or less.",
+        model="gpt-3.5-turbo-1106",
+    )
+    session['assistant_id'] = assistant.id
+    print('ASSITANT:',assistant)
     return jsonify({"keys": keys, "information": information, "images": all_images})
 
 @app.route('/fetch-images', methods=['POST'])
@@ -206,16 +214,10 @@ def chatbot_route():
     data = request.get_json()
     print(data)
     query = data.get('userdata', '')
-    client = OpenAI()
-    assistant = client.beta.assistants.create(
-        name="SLIDESTER",
-        # instructions="You are a personal math tutor. Answer questions briefly, in a sentence or less.",
-        model="gpt-3.5-turbo-1106",
-)
-    print('ASSITANT:',assistant)
     if query:         
         # assistant_json = json.loads(assistant.model_dump_json())
-        assistant_id = assistant.id
+        client = OpenAI()
+        assistant_id = session['assistant_id']
         print(assistant_id)
         thread = client.beta.threads.create()
         thread_id = thread.id
@@ -228,7 +230,7 @@ def chatbot_route():
 
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
-            assistant_id=assistant.id,
+            assistant_id=session['assistant_id'],
         )
 
         run = wait_on_run(run, thread)
