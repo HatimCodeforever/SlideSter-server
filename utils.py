@@ -140,6 +140,7 @@ def generate_image(prompt):
 
     return image_path
 
+vectordb_file_path = 'faiss_index'
 def ingest(file_path):
     file_extension = os.path.splitext(file_path)[1]
     loader_class = DOCUMENT_MAP.get(file_extension)
@@ -152,10 +153,12 @@ def ingest(file_path):
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     texts = text_splitter.split_documents(docs)
-    split_text = [text.page_content for text in texts]
 
+    print('CONVERTING TEXTS TO EMBEDDINGS...')
     embeddings = OpenAIEmbeddings()
-    vector_db = FAISS.from_texts(split_text, embeddings)
+    vector_db = FAISS.from_documents(texts, embeddings)
+    print('VECTOR DATABASE CREATED')
+    vector_db.save_local(vectordb_file_path)
 
     return vector_db
 
