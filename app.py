@@ -124,23 +124,29 @@ def logout():
     response = {"message": "success"}
     return jsonify(response)
 
-
 @app.route("/suggest-titles", methods=["POST"])
 def suggest_titles():
-    data = request.get_json()
-    domain = data.get("domain")
-    topic = data.get("topic")
-    output = generate_slide_titles(topic)
-    response_list = list(output.values())
-    print(response_list)
-    # final_suggestion_list = [
-    # 'Introduction', 'Applications', 'Types of Machine Learning',
-    # 'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
-    # 'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
-    # 'Future Trends'
-    # ]
-    response = {"message": response_list}
+    final_suggestion_list = [
+        'Introduction', 'Applications', 'Types of Machine Learning',
+        'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
+        'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
+        'Future Trends'
+        ]
+    if 'file' not in request.files:
+       data = request.get_json()
+       domain = data.get("domain")
+       topic = data.get("topic")
+       output = generate_slide_titles(topic)
+       response_list = list(output.values())
+       print(response_list)
+       response = {"message": response_list}
+       return jsonify(response)
+    else:
+       file = request.files['file']
+       response = {"message": final_suggestion_list}
+       print("print file ",file)
     return jsonify(response)
+
 
 @app.route('/generate-new-info', methods=['POST'])
 def generate_new_info():
