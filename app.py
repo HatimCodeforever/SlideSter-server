@@ -14,6 +14,7 @@ import ast
 from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image
 import torch
 import time
+from werkzeug.utils import secure_filename
 
 load_dotenv()
 
@@ -143,6 +144,8 @@ def suggest_titles():
        return jsonify(response)
     else:
        file = request.files['file']
+       local_path = 'pdf-file'
+       file.save(os.path.join(local_path, secure_filename(file.filename)))
        response = {"message": final_suggestion_list}
        print("print file ",file)
     return jsonify(response)
