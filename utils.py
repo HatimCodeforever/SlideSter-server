@@ -29,7 +29,9 @@ Topic = {topic}
                 'role':'user',
                 'content': title_suggestion_prompt.format(topic=topic)
             }
-        ]
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
@@ -42,13 +44,15 @@ def generate_point_info(topic, n_points=5):
 Topic : {topic}
 """
     completion = client.chat.completions.create(
-        model = 'gpt-3.5-turbo-0613',
+        model = 'gpt-3.5-turbo-1106',
         messages=[
             {
                 'role':'user',
                 'content': info_gen_prompt.format(topic=topic, n_points=n_points)
             }
-        ]
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
@@ -68,7 +72,9 @@ Topic : {topic}
                 'role':'user',
                 'content': info_gen_prompt.format(topic=topic, n_points=n_points)
             }
-        ]
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
@@ -117,5 +123,43 @@ def generate_image(prompt):
         image.save(image_path)
 
     return image_path
+
+def get_context():
+
+    return 1
+
+
+
+def create_vectordb():
+
+    return 1
+
+def generate_slide_titles_from_document(topic, context):
+    client = OpenAI()
+    info_gen_prompt = """Generate 5 most relvant and compelling slide titles for a PowerPoint Presentation on the given topic and based on the given context. \
+    It should cover the major aspects of the context \
+    Format the output in JSON, with each key representing the slide number and its corresponding value being the slide title. \
+    Be creative and ensure that the titles cover key aspects of the topic, providing a comprehensive overview.
+
+    Topic = {topic}
+
+    Context = {context}
+    """
+    completion = client.chat.completions.create(
+        model = 'gpt-3.5-turbo-1106',
+        messages=[
+            {
+                'role':'user',
+                'content': info_gen_prompt.format(topic= topic, context = context)
+            }
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
+
+    )
+
+    output = ast.literal_eval(completion.choices[0].message.content)
+
+    return output
 
 

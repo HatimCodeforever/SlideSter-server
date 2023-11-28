@@ -13,3 +13,7 @@ safetensors
 invisible_watermark
 peft
 diffusers
+langchain
+tiktoken
+unstructured
+pypdf
