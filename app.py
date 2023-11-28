@@ -333,7 +333,10 @@ def chatbot_route():
             print(all_output[0]['generate_info_output'])
             chatbot_reply = "Yes sure your information has been added on your current Slide!"
             keys = list(all_output[0]['generate_info_output'])
-            response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_information','key': keys, 'information': all_output[0]['generate_info_output']} 
+            all_images= {}
+            images = fetch_images_from_web(keys[0])
+            all_images[keys[0]] = images
+            response = {'chatbotResponse': chatbot_reply, "images": all_images,'function_name': 'generate_information','key': keys, 'information': all_output[0]['generate_info_output']} 
             
         elif "generate_image" in tool:
             print('generate_image')
