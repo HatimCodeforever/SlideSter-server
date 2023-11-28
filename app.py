@@ -11,7 +11,7 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info
+from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image
 import torch
 import time
 
@@ -157,7 +157,7 @@ tools = [
         'type': 'function',
         'function':{
             'name': 'generate_information',
-            'description': 'generates and adds information when given a topic and a slide number, ask the user for all the specified arguments.',
+            'description': 'Generates information when given a topic and a slide number',
             'parameters': {
                 'type': 'object',
                 'properties': {
@@ -166,11 +166,11 @@ tools = [
                         'description': 'The topic on which the information is to be generated. For Example: Introduction to Machine Learning'
                     },
                     'slide_number' :{
-                        'type': 'integer',
-                        'description': 'The number of slide at which the information is to be added.'
+                        'type': 'string',
+                        'description': 'The number of the slide at which the information is to be added.'
                     },
                     'n_points' :{
-                        'type': 'integer',
+                        'type': 'string',
                         'description': 'The number of points of information to be generated, default is 5.'
                     }
                 },
@@ -178,10 +178,49 @@ tools = [
             }
         }
     },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'generate_image',
+            'description': 'Generates images when given an image generation prompt',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'prompt': {
+                        'type': 'string',
+                        'description': 'An appropriate prompt for the image generation model following a specific format for example, Astronaut in a jungle, cold color palette, muted colors, detailed, 8k'
+                    },
+                    'slide_number' :{
+                        'type': 'string',
+                        'description': 'The number of the slide at which the generated image is to be added.'
+                    },
+                },
+                'required': ['prompt', 'slide_number']
+            }
+        }
+    },
+    # {
+    #     'type': 'function',
+    #     'function':{
+    #         'name': 'change_color',
+    #         'description': 'Change the color of the text when given a color',
+    #         'parameters': {
+    #             'type': 'object',
+    #             'properties': {
+    #                 'color': {
+    #                     'type': 'string',
+    #                     'description': 'The specified color to change. Example red, green, etc.'
+    #                 },
+    #             },
+    #             'required': ['color']
+    #         }
+    #     }
+    # },
 ]
 
 available_tools = {
-    'generate_information': chat_generate_point_info
+    'generate_information': chat_generate_point_info,
+    'generate_image': generate_image
 }
 
 @app.route("/generate-info")
@@ -210,7 +249,7 @@ def generate_info():
     client = OpenAI()
     assistant = client.beta.assistants.create(
         name="SLIDESTER",
-        instructions="You are a helpful assistant. Use the tools provided to you to help the user.",
+        instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
         model="gpt-3.5-turbo-0613",
         tools =  tools
     )
@@ -237,16 +276,19 @@ def get_tool_result(thread_id, run_id, tools_to_call):
         tool_call_id = tool.id
         tool_name = tool.function.name
         tool_args = tool.function.arguments
+        tool_to_call = available_tools.get(tool_name)
         print('TOOL CALLED:',tool_name)
         print('ARGUMENTS:', tool_args)
 
         if tool_name == 'generate_information':
-            tool_to_call = available_tools.get(tool_name)
             topic = json.loads(tool_args)['topic']
             n_points = json.loads(tool_args)['n_points']
             output = tool_to_call(topic= topic, n_points= n_points)
-
             print('OUTPUT:',output)
+        elif tool_name == 'generate_image':
+            prompt = json.loads(tool_args)['prompt']
+            image_path = generate_image(prompt)
+            print(image_path)
 
         if output:
             tools_outputs.append({'tool_call_id': tool_call_id, 'output': output})

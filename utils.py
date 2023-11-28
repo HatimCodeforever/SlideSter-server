@@ -15,7 +15,6 @@ import json
 openai.api_key = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def generate_slide_titles(topic):
     client = OpenAI()
@@ -43,7 +42,7 @@ def generate_point_info(topic, n_points=5):
 Topic : {topic}
 """
     completion = client.chat.completions.create(
-        model = 'gpt-3.5-turbo-1106',
+        model = 'gpt-3.5-turbo-0613',
         messages=[
             {
                 'role':'user',
@@ -82,23 +81,24 @@ def fetch_images_from_web(topic):
     images = search_results['images']
     return images
 
+device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+if device_type=='cuda':
+    image_gen_model = DiffusionPipeline.from_pretrained(
+        "stabilityai/stable-diffusion-xl-base-1.0",
+        variant="fp16",
+        torch_dtype=torch.float16,
+        use_auth_token = auth_token
+    ).to("cuda")
+    # SET SCHEDULER
+    image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
+    # LOAD LCM-LoRA
+    image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
+
 def generate_image(prompt):
     image_path = prompt + '.png'
+    print('GENERATING IMAGE ON DEVICE TYPE:',device_type)
     if device_type == 'cuda':
-        image_gen_model = DiffusionPipeline.from_pretrained(
-            "stabilityai/stable-diffusion-xl-base-1.0",
-            variant="fp16",
-            torch_dtype=torch.float16,
-            use_auth_token = auth_token
-        ).to("cuda")
-
-        # SET SCHEDULER
-        image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
-
-        # LOAD LCM-LoRA
-        image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
-
-        # SEED FOR CONSISTENT OUTPUT
         generator = torch.manual_seed(42)
         image = image_gen_model(
             prompt=prompt, num_inference_steps=4, generator=generator, guidance_scale=1.0
@@ -110,8 +110,9 @@ def generate_image(prompt):
         headers = {"Authorization": "Bearer "+ auth_token}
         payload = {'inputs': prompt}
         response = requests.post(SDXL_API_URL, headers=headers, json = payload)
-
+        print(response)
         image_bytes = response.content
+        print(image_bytes[:100])
         image = Image.open(io.BytesIO(image_bytes)) 
         image.save(image_path)
 
