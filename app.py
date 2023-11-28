@@ -250,6 +250,7 @@ def get_tool_result(thread_id, run_id, tools_to_call):
 
         if output:
             tools_outputs.append({'tool_call_id': tool_call_id, 'output': output})
+    return tools_outputs
         
 @app.route('/chatbot-route', methods=['POST'])
 def chatbot_route():
@@ -281,14 +282,15 @@ def chatbot_route():
         elif run.status == 'requires_action':
             run = get_tool_result(thread.id, run.id, run.required_action.submit_tool_outputs.tool_calls)
             # run = wait_for_run_completion(thread.id, run.id)
-            print('HELLO')
+            print('HELLO', run[0]['output'])
         
         messages = client.beta.threads.messages.list(thread_id=thread.id)
         print(messages.data[0].content[0])
         chatbot_reply = messages.data[0].content[0].text.value
-
+        output = run[0]
+        keys = list(output['output'].keys())
         # Return the chatbot response
-        return jsonify({'chatbotResponse': chatbot_reply})
+        return jsonify({'chatbotResponse': chatbot_reply,'function': ['generate_info'],'key': keys, 'information': output['output']})
     else:
         return jsonify({'error': 'User message not provided'}), 400
     
