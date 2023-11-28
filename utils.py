@@ -19,6 +19,7 @@ from langchain.document_loaders import CSVLoader, PyPDFLoader, TextLoader, Unstr
 openai.api_key = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+vectordb_file_path = 'faiss_index'
 
 DOCUMENT_MAP = {
     ".txt": TextLoader,
@@ -140,7 +141,7 @@ def generate_image(prompt):
 
     return image_path
 
-vectordb_file_path = 'faiss_index'
+
 def ingest(file_path):
     file_extension = os.path.splitext(file_path)[1]
     loader_class = DOCUMENT_MAP.get(file_extension)
@@ -160,7 +161,7 @@ def ingest(file_path):
     print('VECTOR DATABASE CREATED')
     vector_db.save_local(vectordb_file_path)
 
-    return vector_db
+    return vectordb_file_path
 
 def generate_slide_titles_from_document(topic, context):
     client = OpenAI()
@@ -184,6 +185,30 @@ def generate_slide_titles_from_document(topic, context):
         response_format = {'type':'json_object'},
         seed = 42,
 
+    )
+
+    output = ast.literal_eval(completion.choices[0].message.content)
+
+    return output
+
+def generate_point_info_from_document(topic, n_points, context):
+    client = OpenAI()
+    info_gen_prompt = """You will be given a topic and some context. Your task is to generate {n_points} points of information using the context. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
+
+Topic : {topic}
+
+context : {context}
+"""
+    completion = client.chat.completions.create(
+        model = 'gpt-3.5-turbo-1106',
+        messages=[
+            {
+                'role':'user',
+                'content': info_gen_prompt.format(topic=topic, n_points=n_points, context= context)
+            }
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)

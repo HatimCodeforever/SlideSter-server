@@ -11,9 +11,10 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image
+from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document
 import torch
 import time
+from langchain.vectorstores import FAISS
 from werkzeug.utils import secure_filename
 
 load_dotenv()
@@ -133,21 +134,38 @@ def suggest_titles():
         'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
         'Future Trends'
         ]
+    
+    topic = data.get("topic")
+    domain = data.get("domain")
+
     if 'file' not in request.files:
        data = request.get_json()
-       domain = data.get("domain")
-       topic = data.get("topic")
        output = generate_slide_titles(topic)
        response_list = list(output.values())
        print(response_list)
        response = {"message": response_list}
        return jsonify(response)
     else:
-       file = request.files['file']
-       local_path = 'pdf-file'
-       file.save(os.path.join(local_path, secure_filename(file.filename)))
-       response = {"message": final_suggestion_list}
-       print("print file ",file)
+        file = request.files['file']
+        print("print file ",file)
+        local_path = 'pdf-file'
+        file.save(os.path.join(local_path, secure_filename(file.filename)))
+        file_path = 'pdf-file/'+ secure_filename(file.filename)
+        vectordb_file_path = ingest(file_path)
+        vector_db = FAISS.load_local(vectordb_file_path)
+        query1 = "Important information on "+ topic
+        query2 = "Technology used"
+
+        docs1 = vector_db.similarity_search(query1)
+        docs2 = vector_db.similarity_search(query2)
+
+        all_docs = docs1 + docs2
+
+        context = [doc.page_content for doc in all_docs]
+        output = generate_slide_titles_from_document(topic, context)
+        response_list = list(output.values())
+
+        response = {"message": response_list}
     return jsonify(response)
 
 
