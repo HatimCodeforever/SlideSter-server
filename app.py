@@ -151,25 +151,26 @@ def generate_new_info():
     keys = list(information.keys())
     return jsonify({"key": keys, "information": information})
 
+slide_number = 3
 tools = [
     {
         'type': 'function',
         'function':{
             'name': 'generate_information',
-            'description': 'generates and adds information when given a topic and a slide number',
+            'description': 'generates and adds information when given a topic and a slide number, ask the user for all the specified arguments.',
             'parameters': {
                 'type': 'object',
                 'properties': {
                     'topic': {
                         'type': 'string',
-                        'description': 'The topic on which the content is to be generated. For Example: Introduction to Machine Learning'
+                        'description': 'The topic on which the information is to be generated. For Example: Introduction to Machine Learning'
                     },
                     'slide_number' :{
-                        'type': 'string',
-                        'description': 'The slide number at which the content is to be added. For Example: slide number 5'
+                        'type': 'integer',
+                        'description': 'The number of slide at which the information is to be added.'
                     },
                     'n_points' :{
-                        'type': 'string',
+                        'type': 'integer',
                         'description': 'The number of points of information to be generated, default is 5.'
                     }
                 },
@@ -209,8 +210,8 @@ def generate_info():
     client = OpenAI()
     assistant = client.beta.assistants.create(
         name="SLIDESTER",
-        instructions="You are a helpful assistant. Use the tools provided to you to help the user. Ask the user for clarification if insuffient information is provided to use the tool. Do not assume anything on your own",
-        model="gpt-3.5-turbo-1106",
+        instructions="You are a helpful assistant. Use the tools provided to you to help the user.",
+        model="gpt-3.5-turbo-0613",
         tools =  tools
     )
     session['assistant_id'] = assistant.id
@@ -261,23 +262,17 @@ def chatbot_route():
         print('ASSISTANT ID',assistant_id)
         thread = client.beta.threads.create()
         print('THREAD ID', thread.id)
-
-        # client.beta.threads.messages.create(
-        #     thread_id= thread.id,
-        #     role="system",
-        #     content= "Use the tools provided to you to help the user. Ask for any information if required. Don't assume anything on your own",
-        # )
-
+        
         message = client.beta.threads.messages.create(
             thread_id= thread.id,
             role="user",
             content= query,
         )
-
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
             assistant_id=session['assistant_id'],
         )
+        
 
         run = wait_on_run(run.id, thread.id)
 
