@@ -10,11 +10,40 @@ import io
 from PIL import Image
 import torch
 import json
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import FAISS
+from langchain.document_loaders import CSVLoader, PyPDFLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader, PyPDFDirectoryLoader
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+
+DOCUMENT_MAP = {
+    ".txt": TextLoader,
+    ".md": TextLoader,
+    ".py": TextLoader,
+    ".csv": CSVLoader,
+    ".xls": UnstructuredExcelLoader,
+    ".xlsx": UnstructuredExcelLoader,
+    ".docx": Docx2txtLoader,
+    ".doc": Docx2txtLoader,
+}
+
+device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+if device_type=='cuda':
+    image_gen_model = DiffusionPipeline.from_pretrained(
+        "stabilityai/stable-diffusion-xl-base-1.0",
+        variant="fp16",
+        torch_dtype=torch.float16,
+        use_auth_token = auth_token
+    ).to("cuda")
+    # SET SCHEDULER
+    image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
+    # LOAD LCM-LoRA
+    image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
 
 def generate_slide_titles(topic):
     client = OpenAI()
@@ -29,7 +58,9 @@ Topic = {topic}
                 'role':'user',
                 'content': title_suggestion_prompt.format(topic=topic)
             }
-        ]
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
@@ -42,13 +73,15 @@ def generate_point_info(topic, n_points=5):
 Topic : {topic}
 """
     completion = client.chat.completions.create(
-        model = 'gpt-3.5-turbo-0613',
+        model = 'gpt-3.5-turbo-1106',
         messages=[
             {
                 'role':'user',
                 'content': info_gen_prompt.format(topic=topic, n_points=n_points)
             }
-        ]
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
@@ -68,7 +101,9 @@ Topic : {topic}
                 'role':'user',
                 'content': info_gen_prompt.format(topic=topic, n_points=n_points)
             }
-        ]
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
@@ -81,19 +116,6 @@ def fetch_images_from_web(topic):
     images = search_results['images']
     return images
 
-device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-if device_type=='cuda':
-    image_gen_model = DiffusionPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-xl-base-1.0",
-        variant="fp16",
-        torch_dtype=torch.float16,
-        use_auth_token = auth_token
-    ).to("cuda")
-    # SET SCHEDULER
-    image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
-    # LOAD LCM-LoRA
-    image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
 
 def generate_image(prompt):
     image_path = prompt + '.png'
@@ -117,5 +139,56 @@ def generate_image(prompt):
         image.save(image_path)
 
     return image_path
+
+def ingest(file_path):
+    file_extension = os.path.splitext(file_path)[1]
+    loader_class = DOCUMENT_MAP.get(file_extension)
+    if loader_class:
+        loader = loader_class(file_path)
+    else:
+        raise ValueError("Document type is not supported")
+    loader = loader_class(file_path)
+    docs = loader.load()
+
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    texts = text_splitter.split_documents(docs)
+    split_text = [text.page_content for text in texts]
+
+    embeddings = OpenAIEmbeddings()
+    vector_db = FAISS.from_texts(split_text, embeddings)
+
+    return vector_db
+
+def generate_slide_titles_from_document(topic, context):
+    client = OpenAI()
+    info_gen_prompt = """Generate 5 most relvant and compelling slide titles for a PowerPoint Presentation on the given topic and based on the given context. \
+    It should cover the major aspects of the context \
+    Format the output in JSON, with each key representing the slide number and its corresponding value being the slide title. \
+    Be creative and ensure that the titles cover key aspects of the topic, providing a comprehensive overview.
+
+    Topic = {topic}
+
+    Context = {context}
+    """
+    completion = client.chat.completions.create(
+        model = 'gpt-3.5-turbo-1106',
+        messages=[
+            {
+                'role':'user',
+                'content': info_gen_prompt.format(topic= topic, context = context)
+            }
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
+
+    )
+
+    output = ast.literal_eval(completion.choices[0].message.content)
+
+    return output
+
+
+
+
 
 
