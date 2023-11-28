@@ -10,11 +10,40 @@ import io
 from PIL import Image
 import torch
 import json
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import FAISS
+from langchain.document_loaders import CSVLoader, PyPDFLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader, PyPDFDirectoryLoader
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+
+DOCUMENT_MAP = {
+    ".txt": TextLoader,
+    ".md": TextLoader,
+    ".py": TextLoader,
+    ".csv": CSVLoader,
+    ".xls": UnstructuredExcelLoader,
+    ".xlsx": UnstructuredExcelLoader,
+    ".docx": Docx2txtLoader,
+    ".doc": Docx2txtLoader,
+}
+
+device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+if device_type=='cuda':
+    image_gen_model = DiffusionPipeline.from_pretrained(
+        "stabilityai/stable-diffusion-xl-base-1.0",
+        variant="fp16",
+        torch_dtype=torch.float16,
+        use_auth_token = auth_token
+    ).to("cuda")
+    # SET SCHEDULER
+    image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
+    # LOAD LCM-LoRA
+    image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
 
 def generate_slide_titles(topic):
     client = OpenAI()
@@ -87,19 +116,6 @@ def fetch_images_from_web(topic):
     images = search_results['images']
     return images
 
-device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-if device_type=='cuda':
-    image_gen_model = DiffusionPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-xl-base-1.0",
-        variant="fp16",
-        torch_dtype=torch.float16,
-        use_auth_token = auth_token
-    ).to("cuda")
-    # SET SCHEDULER
-    image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
-    # LOAD LCM-LoRA
-    image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
 
 def generate_image(prompt):
     image_path = prompt + '.png'
@@ -124,15 +140,24 @@ def generate_image(prompt):
 
     return image_path
 
-def get_context():
+def ingest(file_path):
+    file_extension = os.path.splitext(file_path)[1]
+    loader_class = DOCUMENT_MAP.get(file_extension)
+    if loader_class:
+        loader = loader_class(file_path)
+    else:
+        raise ValueError("Document type is not supported")
+    loader = loader_class(file_path)
+    docs = loader.load()
 
-    return 1
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    texts = text_splitter.split_documents(docs)
+    split_text = [text.page_content for text in texts]
 
+    embeddings = OpenAIEmbeddings()
+    vector_db = FAISS.from_texts(split_text, embeddings)
 
-
-def create_vectordb():
-
-    return 1
+    return vector_db
 
 def generate_slide_titles_from_document(topic, context):
     client = OpenAI()
@@ -161,5 +186,9 @@ def generate_slide_titles_from_document(topic, context):
     output = ast.literal_eval(completion.choices[0].message.content)
 
     return output
+
+
+
+
 
 
