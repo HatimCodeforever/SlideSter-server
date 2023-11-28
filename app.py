@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, json
+from flask import Flask, request, jsonify, session, json,send_file,make_response
 from pymongo import MongoClient
 import bcrypt
 import jwt
@@ -271,6 +271,7 @@ def wait_on_run(run_id, thread_id):
         
 def get_tool_result(thread_id, run_id, tools_to_call):
     tools_outputs = []
+    all_tool_name = []
     for tool in tools_to_call:
         output = None
         tool_call_id = tool.id
@@ -279,20 +280,21 @@ def get_tool_result(thread_id, run_id, tools_to_call):
         tool_to_call = available_tools.get(tool_name)
         print('TOOL CALLED:',tool_name)
         print('ARGUMENTS:', tool_args)
-
+        all_tool_name.append(tool_name)
         if tool_name == 'generate_information':
             topic = json.loads(tool_args)['topic']
             n_points = json.loads(tool_args)['n_points']
             output = tool_to_call(topic= topic, n_points= n_points)
             print('OUTPUT:',output)
+            if output:
+                tools_outputs.append({'generate_info_output': output })
         elif tool_name == 'generate_image':
             prompt = json.loads(tool_args)['prompt']
             image_path = generate_image(prompt)
             print(image_path)
-
-        if output:
-            tools_outputs.append({'tool_call_id': tool_call_id, 'output': output})
-    return tools_outputs
+            tools_outputs.append({'generate_image_output': image_path })
+        
+    return tools_outputs,all_tool_name
         
 @app.route('/chatbot-route', methods=['POST'])
 def chatbot_route():
@@ -322,21 +324,34 @@ def chatbot_route():
         if run.status == 'failed':
             print(run.error)
         elif run.status == 'requires_action':
-            run = get_tool_result(thread.id, run.id, run.required_action.submit_tool_outputs.tool_calls)
+            all_output,tool = get_tool_result(thread.id, run.id, run.required_action.submit_tool_outputs.tool_calls)
             # run = wait_for_run_completion(thread.id, run.id)
-            print('HELLO', run[0]['output'])
-        
         messages = client.beta.threads.messages.list(thread_id=thread.id)
-        print(messages.data[0].content[0])
-        chatbot_reply = messages.data[0].content[0].text.value
-        output = run[0]
-        keys = list(output['output'].keys())
-        # Return the chatbot response
-        return jsonify({'chatbotResponse': chatbot_reply,'function': ['generate_info'],'key': keys, 'information': output['output']})
+        
+        if "generate_information" in tool:
+            print('generate_information')
+            print(all_output[0]['generate_info_output'])
+            chatbot_reply = "Yes sure your information has been added on your current Slide!"
+            keys = list(all_output[0]['generate_info_output'])
+            response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_information','key': keys, 'information': all_output[0]['generate_info_output']} 
+            
+        elif "generate_image" in tool:
+            print('generate_image')
+            image_path = all_output[0]['generate_image_output']
+            chatbot_reply = "Yes sure your image has been added on your current Slide!"
+            image_url = f"/send_image/{image_path}"
+            # Create a response object to include both image and JSON data
+            response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+        return jsonify(response)
     else:
         return jsonify({'error': 'User message not provided'}), 400
     
-    
+
+@app.route('/send_image/<image_path>', methods=['GET'])
+def send_image(image_path):
+    return send_file(image_path, mimetype='image/jpeg')
+
+
     
 
 if __name__ == "__main__":
