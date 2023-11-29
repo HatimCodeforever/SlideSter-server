@@ -11,10 +11,11 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document
+from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document
 import torch
 import time
 from langchain.vectorstores import FAISS
+from langchain.embeddings.openai import OpenAIEmbeddings
 from werkzeug.utils import secure_filename
 
 load_dotenv()
@@ -107,11 +108,14 @@ def model1():
     data = request.json
     titles = data.get("titles")
     points = data.get("points")
-    print(titles)
-    print(points)
+    doc = data.get("doc")
+    # print(titles)
+    # print(points)
+    print("doc status",doc)
     ppt_data = {
       "titles": titles,
-      "points": points
+      "points": points,
+      "doc" : doc
     }
     collection = MongoDB('ppt')
     result=collection.insert_one(ppt_data)
@@ -128,22 +132,22 @@ def logout():
 
 @app.route("/suggest-titles", methods=["POST"])
 def suggest_titles():
-    final_suggestion_list = [
-        'Introduction', 'Applications', 'Types of Machine Learning',
-        'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
-        'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
-        'Future Trends'
-        ]
+    # final_suggestion_list = [
+    #     'Introduction', 'Applications', 'Types of Machine Learning',
+    #     'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
+    #     'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
+    #     'Future Trends'
+    #     ]
     
-    topic = data.get("topic")
-    domain = data.get("domain")
+    domain = request.form.get('domain')
+    topic = request.form.get('topic')
 
     if 'file' not in request.files:
-       data = request.get_json()
+       print("i m here")
        output = generate_slide_titles(topic)
        response_list = list(output.values())
        print(response_list)
-       response = {"message": response_list}
+       response = {"message": response_list,"doc":False}
        return jsonify(response)
     else:
         file = request.files['file']
@@ -151,11 +155,12 @@ def suggest_titles():
         local_path = 'pdf-file'
         file.save(os.path.join(local_path, secure_filename(file.filename)))
         file_path = 'pdf-file/'+ secure_filename(file.filename)
+        embeddings = OpenAIEmbeddings()
         vectordb_file_path = ingest(file_path)
-        vector_db = FAISS.load_local(vectordb_file_path)
-        query1 = "Important information on "+ topic
-        query2 = "Technology used"
-
+        vector_db= FAISS.load_local(vectordb_file_path, embeddings)
+        query1 = topic
+        query2 = "Technology or architecture"
+        session["vectordb_file_path"]=vectordb_file_path
         docs1 = vector_db.similarity_search(query1)
         docs2 = vector_db.similarity_search(query2)
 
@@ -165,7 +170,7 @@ def suggest_titles():
         output = generate_slide_titles_from_document(topic, context)
         response_list = list(output.values())
 
-        response = {"message": response_list}
+        response = {"message": response_list,"doc":True}
     return jsonify(response)
 
 
@@ -257,32 +262,63 @@ def generate_info():
     doc = collection.find_one({'_id': ObjectId(session['info_id'])})
     topics = doc.get('titles')
     num_points = doc.get('points')
-    information = {
-    'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
-    'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
-    }
-    # information = {}
-    # for topic in topics:
-    #     output = generate_point_info(topic=topic, n_points=num_points)
-    #     information[topic] = list(output.values())[0]
-    # all_images = {}
-    all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
-    # for topic in topics:
-    #     images = fetch_images_from_web(topic)
-    #     all_images[topic] = images
-    # print(information)
-    keys = list(information.keys())
-    # print(all_images)
-    client = OpenAI()
-    assistant = client.beta.assistants.create(
-        name="SLIDESTER",
-        instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
-        model="gpt-3.5-turbo-0613",
-        tools =  tools
-    )
-    session['assistant_id'] = assistant.id
-    print('ASSITANT:',assistant)
-    return jsonify({"keys": keys, "information": information, "images": all_images})
+    doc = doc.get('doc')
+    print('doc',doc)
+    if not doc:
+        information = {
+        'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
+        'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
+        }
+        # information = {}
+        # for topic in topics:
+        #     output = generate_point_info(topic=topic, n_points=num_points)
+        #     information[topic] = list(output.values())[0]
+        # print(information)
+
+        # all_images = {}
+        all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
+        # for topic in topics:
+        #     images = fetch_images_from_web(topic)
+        #     all_images[topic] = images
+        keys = list(information.keys())
+        # print(all_images)
+        client = OpenAI()
+        assistant = client.beta.assistants.create(
+            name="SLIDESTER",
+            instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
+            model="gpt-3.5-turbo-0613",
+            tools =  tools
+        )
+        session['assistant_id'] = assistant.id
+        print('ASSITANT:',assistant)
+        return jsonify({"keys": keys, "information": information, "images": all_images})
+    else:
+        information = {}
+        embeddings = OpenAIEmbeddings()
+        vectordb_file_path = session["vectordb_file_path"]
+        vector_db = FAISS.load_local(vectordb_file_path, embeddings)
+        for topic in topics:
+            rel_docs = vector_db.similarity_search(topic)
+            time.sleep(25)
+            context = [doc.page_content for doc in rel_docs]
+            output = generate_point_info_from_document(topic=topic, n_points=num_points, context=context)
+            information[topic] = list(output.values())[0]
+        all_images = {}
+        for topic in topics:
+            images = fetch_images_from_web(topic)
+            all_images[topic] = images
+        keys = list(information.keys())
+        client = OpenAI()
+        assistant = client.beta.assistants.create(
+            name="SLIDESTER",
+            instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
+            model="gpt-3.5-turbo-0613",
+            tools =  tools
+        )
+        session['assistant_id'] = assistant.id
+        print('ASSITANT:',assistant)
+        return jsonify({"keys": keys, "information": information, "images": all_images})
+
 
 def wait_on_run(run_id, thread_id):
     client = OpenAI()
