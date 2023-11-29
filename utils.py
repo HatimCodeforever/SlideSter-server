@@ -17,6 +17,7 @@ from langchain.document_loaders import CSVLoader, PyPDFLoader, TextLoader, Unstr
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
+# os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 vectordb_file_path = 'faiss_index'
@@ -30,6 +31,7 @@ DOCUMENT_MAP = {
     ".xlsx": UnstructuredExcelLoader,
     ".docx": Docx2txtLoader,
     ".doc": Docx2txtLoader,
+    ".pdf": PyPDFLoader
 }
 
 device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
