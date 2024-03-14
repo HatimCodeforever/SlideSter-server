@@ -231,23 +231,27 @@ tools = [
             }
         }
     },
-    # {
-    #     'type': 'function',
-    #     'function':{
-    #         'name': 'change_color',
-    #         'description': 'Change the color of the text when given a color',
-    #         'parameters': {
-    #             'type': 'object',
-    #             'properties': {
-    #                 'color': {
-    #                     'type': 'string',
-    #                     'description': 'The specified color to change. Example red, green, etc.'
-    #                 },
-    #             },
-    #             'required': ['color']
-    #         }
-    #     }
-    # },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'change_style',
+            'description': 'Change the style of the text when given a color and font size',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'text_color': {
+                        'type': 'string',
+                        'description': 'The color of transform the text into. Example red, green, etc.'
+                    },
+                    'font_size': {
+                        'type': 'string',
+                        'description': 'The size of the text.'
+                    }
+                },
+                'required': ['text_color', 'font_size']
+            }
+        }
+    },
 ]
 
 available_tools = {
