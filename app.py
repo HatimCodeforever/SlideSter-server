@@ -11,7 +11,7 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
+from utils import generate_slide_titles,generate_slide_titles_from_web, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
 import torch
 import time
 from langchain_community.vectorstores import FAISS
@@ -137,67 +137,67 @@ def logout():
 
 @app.route("/suggest-titles", methods=["POST"])
 def suggest_titles():
-    final_suggestion_list = [
-        'Introduction', 'Applications', 'Types of Machine Learning',
-        'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
-        'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
-        'Future Trends'
-        ]
+    # final_suggestion_list = [
+    #     'Introduction', 'Applications', 'Types of Machine Learning',
+    #     'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
+    #     'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
+    #     'Future Trends'
+    #     ]
     
     domain = request.form.get('domain')
     topic = request.form.get('topic')
     web = request.form.get('web')
     print("web",web)
     print("type",type(web))
-    # if 'file' not in request.files:
-    #    if web=="true":
-    #     print("WEB search")
-    #     output = generate_slide_titles_from_web(topic)
-    #     response_list = list(output.values())
-    #     response = {"message": response_list,"doc":False}
-    #     return jsonify(response)
-        
-    #    else: 
-    #     print("WEB not search")
-    #     output = generate_slide_titles(topic)
-    #     response_list = list(output.values())
-    #     print(response_list)
-    #     response = {"message": response_list,"doc":False}
-    #     return jsonify(response)
-    # else:
-    #     file = request.files['file']
-    #     print("print file ",file)
-    #     local_path = 'pdf-file'
-    #     file.save(os.path.join(local_path, secure_filename(file.filename)))
-    #     file_path = 'pdf-file/'+ secure_filename(file.filename)
-    #     embeddings = OpenAIEmbeddings()
-    #     vectordb_file_path = ingest(file_path)
-    #     vector_db= FAISS.load_local(vectordb_file_path, embeddings)
-    #     query1 = topic
-    #     query2 = "Technology or architecture"
-    #     session["vectordb_file_path"]=vectordb_file_path
-    #     docs1 = vector_db.similarity_search(query1)
-    #     docs2 = vector_db.similarity_search(query2)
-
     if 'file' not in request.files:
-       output = generate_slide_titles(topic)
-       response_list = list(output.values())
-       print(response_list)
-       response = {"message": response_list,"doc":False}
-       return jsonify(response)
+       if web=="true":
+        print("WEB search")
+        output = generate_slide_titles_from_web(topic)
+        response_list = list(output.values())
+        response = {"message": response_list,"doc":False}
+        return jsonify(response)
+        
+       else: 
+        print("WEB not search")
+        output = generate_slide_titles(topic)
+        response_list = list(output.values())
+        print(response_list)
+        response = {"message": response_list,"doc":False}
+        return jsonify(response)
     else:
         file = request.files['file']
         print("print file ",file)
         local_path = 'pdf-file'
         file.save(os.path.join(local_path, secure_filename(file.filename)))
         file_path = 'pdf-file/'+ secure_filename(file.filename)
+        # embeddings = OpenAIEmbeddings()
         vectordb_file_path = ingest(file_path)
-        vector_db= FAISS.load_local(vectordb_file_path, EMBEDDINGS)
+        vector_db= FAISS.load_local(vectordb_file_path, embeddings)
         query1 = topic
         query2 = "Technology or architecture"
         session["vectordb_file_path"]=vectordb_file_path
         docs1 = vector_db.similarity_search(query1)
         docs2 = vector_db.similarity_search(query2)
+
+    # if 'file' not in request.files:
+    #    output = generate_slide_titles(topic)
+    #    response_list = list(output.values())
+    #    print(response_list)
+    #    response = {"message": response_list,"doc":False}
+    #    return jsonify(response)
+    # else:
+    #     file = request.files['file']
+    #     print("print file ",file)
+    #     local_path = 'pdf-file'
+    #     file.save(os.path.join(local_path, secure_filename(file.filename)))
+    #     file_path = 'pdf-file/'+ secure_filename(file.filename)
+    #     vectordb_file_path = ingest(file_path)
+    #     vector_db= FAISS.load_local(vectordb_file_path, EMBEDDINGS)
+    #     query1 = topic
+    #     query2 = "Technology or architecture"
+    #     session["vectordb_file_path"]=vectordb_file_path
+    #     docs1 = vector_db.similarity_search(query1)
+    #     docs2 = vector_db.similarity_search(query2)
 
     #     context = [doc.page_content for doc in all_docs]
     #     output = generate_slide_titles_from_document(topic, context)
