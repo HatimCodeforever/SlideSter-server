@@ -11,12 +11,14 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document
+from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, generate_slide_titles_from_web, generate_point_info_from_web
 import torch
 import time
 from langchain.vectorstores import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from werkzeug.utils import secure_filename
+from tavily import TavilyClient
+
 
 load_dotenv()
 
@@ -109,13 +111,16 @@ def model1():
     titles = data.get("titles")
     points = data.get("points")
     doc = data.get("doc")
+    web = data.get("web")
     # print(titles)
     # print(points)
     print("doc status",doc)
+    print("web status",web)
     ppt_data = {
       "titles": titles,
       "points": points,
-      "doc" : doc
+      "doc" : doc,
+      "web" : web
     }
     collection = MongoDB('ppt')
     result=collection.insert_one(ppt_data)
@@ -132,45 +137,56 @@ def logout():
 
 @app.route("/suggest-titles", methods=["POST"])
 def suggest_titles():
-    # final_suggestion_list = [
-    #     'Introduction', 'Applications', 'Types of Machine Learning',
-    #     'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
-    #     'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
-    #     'Future Trends'
-    #     ]
+    final_suggestion_list = [
+        'Introduction', 'Applications', 'Types of Machine Learning',
+        'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
+        'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
+        'Future Trends'
+        ]
     
     domain = request.form.get('domain')
     topic = request.form.get('topic')
+    web = request.form.get('web')
+    print("web",web)
+    print("type",type(web))
+    # if 'file' not in request.files:
+    #    if web=="true":
+    #     print("WEB search")
+    #     output = generate_slide_titles_from_web(topic)
+    #     response_list = list(output.values())
+    #     response = {"message": response_list,"doc":False}
+    #     return jsonify(response)
+        
+    #    else: 
+    #     print("WEB not search")
+    #     output = generate_slide_titles(topic)
+    #     response_list = list(output.values())
+    #     print(response_list)
+    #     response = {"message": response_list,"doc":False}
+    #     return jsonify(response)
+    # else:
+    #     file = request.files['file']
+    #     print("print file ",file)
+    #     local_path = 'pdf-file'
+    #     file.save(os.path.join(local_path, secure_filename(file.filename)))
+    #     file_path = 'pdf-file/'+ secure_filename(file.filename)
+    #     embeddings = OpenAIEmbeddings()
+    #     vectordb_file_path = ingest(file_path)
+    #     vector_db= FAISS.load_local(vectordb_file_path, embeddings)
+    #     query1 = topic
+    #     query2 = "Technology or architecture"
+    #     session["vectordb_file_path"]=vectordb_file_path
+    #     docs1 = vector_db.similarity_search(query1)
+    #     docs2 = vector_db.similarity_search(query2)
 
-    if 'file' not in request.files:
-       print("i m here")
-       output = generate_slide_titles(topic)
-       response_list = list(output.values())
-       print(response_list)
-       response = {"message": response_list,"doc":False}
-       return jsonify(response)
-    else:
-        file = request.files['file']
-        print("print file ",file)
-        local_path = 'pdf-file'
-        file.save(os.path.join(local_path, secure_filename(file.filename)))
-        file_path = 'pdf-file/'+ secure_filename(file.filename)
-        embeddings = OpenAIEmbeddings()
-        vectordb_file_path = ingest(file_path)
-        vector_db= FAISS.load_local(vectordb_file_path, embeddings)
-        query1 = topic
-        query2 = "Technology or architecture"
-        session["vectordb_file_path"]=vectordb_file_path
-        docs1 = vector_db.similarity_search(query1)
-        docs2 = vector_db.similarity_search(query2)
+    #     all_docs = docs1 + docs2
 
-        all_docs = docs1 + docs2
+    #     context = [doc.page_content for doc in all_docs]
+    #     output = generate_slide_titles_from_document(topic, context)
+    #     response_list = list(output.values())
 
-        context = [doc.page_content for doc in all_docs]
-        output = generate_slide_titles_from_document(topic, context)
-        response_list = list(output.values())
-
-        response = {"message": response_list,"doc":True}
+    #     response = {"message": response_list,"doc":True}
+    response = {"message": final_suggestion_list,"doc":False}
     return jsonify(response)
 
 
@@ -259,39 +275,67 @@ available_tools = {
 def generate_info():
     print("Generating....")
     collection = MongoDB('ppt')
-    doc = collection.find_one({'_id': ObjectId(session['info_id'])})
-    topics = doc.get('titles')
-    num_points = doc.get('points')
-    doc = doc.get('doc')
-    print('doc',doc)
+    doc_mongo = collection.find_one({'_id': ObjectId(session['info_id'])})
+    topics = doc_mongo.get('titles')
+    num_points = doc_mongo.get('points')
+    print("doc status",doc_mongo)
+    doc = doc_mongo.get('doc')
+    web = doc_mongo.get('web')
+    print('doc--------------------------------',doc_mongo)
     if not doc:
-        information = {
-        'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
-        'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
-        }
-        # information = {}
-        # for topic in topics:
-        #     output = generate_point_info(topic=topic, n_points=num_points)
-        #     information[topic] = list(output.values())[0]
-        # print(information)
+        if web:
+            print("Generating Content from web...")
+            information = {}
+            for topic in topics:
+                output = generate_point_info_from_web(topic=topic, n_points=num_points)
+                information[topic] = list(output.values())[0]
+            print(information)
 
-        # all_images = {}
-        all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
-        # for topic in topics:
-        #     images = fetch_images_from_web(topic)
-        #     all_images[topic] = images
-        keys = list(information.keys())
-        # print(all_images)
-        client = OpenAI()
-        assistant = client.beta.assistants.create(
-            name="SLIDESTER",
-            instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
-            model="gpt-3.5-turbo-0613",
-            tools =  tools
-        )
-        session['assistant_id'] = assistant.id
-        print('ASSITANT:',assistant)
-        return jsonify({"keys": keys, "information": information, "images": all_images})
+            all_images = {}
+            for topic in topics:
+                images = fetch_images_from_web(topic)
+                all_images[topic] = images
+            keys = list(information.keys())
+            client = OpenAI()
+            assistant = client.beta.assistants.create(
+                name="SLIDESTER",
+                instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
+                model="gpt-3.5-turbo-0613",
+                tools =  tools
+            )
+            session['assistant_id'] = assistant.id
+            print('ASSITANT:',assistant)
+            return jsonify({"keys": keys, "information": information, "images": all_images})
+            
+
+        else:
+            information = {
+            'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
+            'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
+            }
+            # information = {}
+            # for topic in topics:
+            #     output = generate_point_info(topic=topic, n_points=num_points)
+            #     information[topic] = list(output.values())[0]
+            # print(information)
+
+            # all_images = {}
+            all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
+            # for topic in topics:
+            #     images = fetch_images_from_web(topic)
+            #     all_images[topic] = images
+            keys = list(information.keys())
+            # print(all_images)
+            client = OpenAI()
+            assistant = client.beta.assistants.create(
+                name="SLIDESTER",
+                instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
+                model="gpt-3.5-turbo-0613",
+                tools =  tools
+            )
+            session['assistant_id'] = assistant.id
+            print('ASSITANT:',assistant)
+            return jsonify({"keys": keys, "information": information, "images": all_images})
     else:
         information = {}
         embeddings = OpenAIEmbeddings()
@@ -363,6 +407,7 @@ def get_tool_result(thread_id, run_id, tools_to_call):
 def chatbot_route():
     data = request.get_json()
     print(data)
+    tool_check = []
     query = data.get('userdata', '')
     if query:         
         client = OpenAI()
@@ -388,10 +433,18 @@ def chatbot_route():
             print(run.error)
         elif run.status == 'requires_action':
             all_output,tool = get_tool_result(thread.id, run.id, run.required_action.submit_tool_outputs.tool_calls)
-            # run = wait_for_run_completion(thread.id, run.id)
-        messages = client.beta.threads.messages.list(thread_id=thread.id)
-        
-        if "generate_information" in tool:
+            tool_check = tool
+        messages = client.beta.threads.messages.list(thread_id=thread.id,order="asc")
+        print('message',messages)
+        content = None
+        for thread_message in messages.data:
+            content = thread_message.content
+        print("Content List",content)
+        if len(tool_check) == 0:
+            chatbot_reply = content[0].text.value
+            print("Chatbot repky",chatbot_reply)
+            response = {'chatbotResponse': chatbot_reply,'function_name': 'normal_search'}
+        elif "generate_information" in tool:
             print('generate_information')
             print(all_output[0]['generate_info_output'])
             chatbot_reply = "Yes sure your information has been added on your current Slide!"
@@ -400,7 +453,6 @@ def chatbot_route():
             images = fetch_images_from_web(keys[0])
             all_images[keys[0]] = images
             response = {'chatbotResponse': chatbot_reply, "images": all_images,'function_name': 'generate_information','key': keys, 'information': all_output[0]['generate_info_output']} 
-            
         elif "generate_image" in tool:
             print('generate_image')
             image_path = all_output[0]['generate_image_output']

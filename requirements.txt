@@ -18,3 +18,4 @@ tiktoken
 unstructured
 pypdf
 faiss-cpu
+langchain-community

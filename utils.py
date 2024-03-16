@@ -16,6 +16,7 @@ from langchain.vectorstores import FAISS
 from langchain.document_loaders import CSVLoader, PyPDFLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader, PyPDFDirectoryLoader
 
 
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 # os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
 auth_token = os.getenv('HUGGINGFACE_API_KEY')
@@ -217,38 +218,10 @@ context : {context}
 
     return output
 
-def generate_slide_titles_from_web(topic, search_result):
-    client = OpenAI()
-    info_gen_prompt = """Generate 10 most relevant and compelling slide titles for a PowerPoint Presentation on the given topic, \ 
-    based on the information provided to you from the internet. \
-    It should cover the major aspects of the search results. \
-    Format the output in JSON, with each key representing the slide number and its corresponding value being the slide title. \
-    Be creative and ensure that the titles cover key aspects of the topic, providing a comprehensive overview.
-
-    Topic = {topic}
-
-    Search Result = {search_result}
-    """
-    completion = client.chat.completions.create(
-        model = 'gpt-3.5-turbo-1106',
-        messages=[
-            {
-                'role':'user',
-                'content': info_gen_prompt.format(topic= topic, search_result = search_result)
-            }
-        ],
-        response_format = {'type':'json_object'},
-        seed = 42,
-
-    )
-
-    output = ast.literal_eval(completion.choices[0].message.content)
-
-    return output
 
 def generate_slide_titles_from_web(topic):
     client = OpenAI()
-    tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
+    tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
     search_result = tavily_client.get_search_context(topic, search_depth="advanced", max_tokens=4000)
     
     info_gen_prompt = """Generate 10 most relevant and compelling slide titles for a PowerPoint Presentation on the given topic, \ 
