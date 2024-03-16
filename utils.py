@@ -18,6 +18,8 @@ from serpapi import GoogleSearch
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key1 = os.getenv("OPENAI_API_KEY1")
+openai_api_key1 = os.getenv("OPENAI_API_KEY2")
 HF_AUTH_TOKEN = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 GOOGLE_SERP_API_KEY = os.getenv('GOOGLE_SERP_API_KEY')
@@ -78,8 +80,11 @@ Topic = {topic}
     output = ast.literal_eval(completion.choices[0].message.content)
     return output
 
-def generate_point_info(topic, n_points):
-    client = OpenAI()
+def generate_point_info(topic, n_points, api_key_to_use):
+    flag = 1 if api_key_to_use== 'first' else (2 if api_key_to_use=='second' else 3 )
+    print(f'THREAD {flag} RUNNING...')
+    openai_api_key = openai_api_key1 if flag == 1 else(openai_api_key2 if flag == 2 else openai_api_key3)
+    client = OpenAI(api_key=openai_api_key)
     info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it for a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
 
     Topics: {topics_list}
@@ -101,8 +106,11 @@ def generate_point_info(topic, n_points):
 
     return output
 
-def chat_generate_point_info(topic, n_points=5):
-    client = OpenAI()
+def chat_generate_point_info(topic, api_key_to_use, n_points=5):
+    flag = 1 if api_key_to_use== 'first' else (2 if api_key_to_use=='second' else 3 )
+    print(f'THREAD {flag} RUNNING...')
+    openai_api_key = openai_api_key1 if flag == 1 else(openai_api_key2 if flag == 2 else openai_api_key3)
+    client = OpenAI(api_key=openai_api_key)
     info_gen_prompt = """You will be given a topic and your task is to generate {n_points} points of information on it. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
 
 Topic : {topic}
