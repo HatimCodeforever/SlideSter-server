@@ -10,18 +10,20 @@ import io
 from PIL import Image
 import torch
 import json
-from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import FAISS
-from langchain.document_loaders import CSVLoader, PyPDFLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader, PyPDFDirectoryLoader
-
+from langchain_community.vectorstores import FAISS
+from langchain_community.document_loaders import CSVLoader, PyPDFLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader, PyPDFDirectoryLoader
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from serpapi import GoogleSearch
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 # os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
-auth_token = os.getenv('HUGGINGFACE_API_KEY')
+HF_AUTH_TOKEN = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-vectordb_file_path = 'faiss_index'
+GOOGLE_SERP_API_KEY = os.getenv('GOOGLE_SERP_API_KEY')
+VECTORDB_FILE_PATH = 'faiss_index'
+
 
 DOCUMENT_MAP = {
     ".txt": TextLoader,
@@ -35,14 +37,21 @@ DOCUMENT_MAP = {
     ".pdf": PyPDFLoader
 }
 
-device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+DEVICE_TYPE = 'cuda' if torch.cuda.is_available() else 'cpu'
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
+ENCODE_KWARGS = {'normalize_embeddings': True} # set True to compute cosine similarity
+EMBEDDINGS = HuggingFaceBgeEmbeddings(
+    model_name= EMBEDDING_MODEL_NAME,
+    model_kwargs={'device': DEVICE_TYPE },
+    encode_kwargs=ENCODE_KWARGS
+)
 
-if device_type=='cuda':
+if DEVICE_TYPE=='cuda':
     image_gen_model = DiffusionPipeline.from_pretrained(
         "stabilityai/stable-diffusion-xl-base-1.0",
         variant="fp16",
         torch_dtype=torch.float16,
-        use_auth_token = auth_token
+        use_auth_token = HF_AUTH_TOKEN
     ).to("cuda")
     # SET SCHEDULER
     image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
@@ -72,9 +81,10 @@ Topic = {topic}
 
 def generate_point_info(topic, n_points=5):
     client = OpenAI()
-    info_gen_prompt = """You will be given a topic and your task is to generate {n_points} points of information on it. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
+    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it lfor a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
 
-Topic : {topic}
+    Topics: {topics_list}
+    Number of Points: {n_points_list}
 """
     completion = client.chat.completions.create(
         model = 'gpt-3.5-turbo-1106',
@@ -115,16 +125,24 @@ Topic : {topic}
     return output
 
 def fetch_images_from_web(topic):
-    tavily_client = TavilyClient(api_key=os.getenv('TAVILY_API_KEY'))
-    search_results = tavily_client.search(topic, search_depth="advanced",include_images=True)
-    images = search_results['images']
-    return images
+    params = {
+    "q": topic,
+    "engine": "google_images",
+    "ijn": "0",
+    "api_key":  GOOGLE_SERP_API_KEY
+    }
+
+    search = GoogleSearch(params)
+    results = search.get_dict()
+    image_results = results["images_results"]
+    image_links = [i['original'] for i in image_results[:10]]
+    return image_links
 
 
 def generate_image(prompt):
     image_path = prompt + '.png'
-    print('GENERATING IMAGE ON DEVICE TYPE:',device_type)
-    if device_type == 'cuda':
+    print('GENERATING IMAGE ON DEVICE TYPE:',DEVICE_TYPE)
+    if DEVICE_TYPE == 'cuda':
         generator = torch.manual_seed(42)
         image = image_gen_model(
             prompt=prompt, num_inference_steps=4, generator=generator, guidance_scale=1.0
@@ -133,7 +151,7 @@ def generate_image(prompt):
         image.save(image_path)
     
     else:
-        headers = {"Authorization": "Bearer "+ auth_token}
+        headers = {"Authorization": "Bearer "+ HF_AUTH_TOKEN}
         payload = {'inputs': prompt}
         response = requests.post(SDXL_API_URL, headers=headers, json = payload)
         print(response)
@@ -159,12 +177,11 @@ def ingest(file_path):
     texts = text_splitter.split_documents(docs)
 
     print('CONVERTING TEXTS TO EMBEDDINGS...')
-    embeddings = OpenAIEmbeddings()
-    vector_db = FAISS.from_documents(texts, embeddings)
+    vector_db = FAISS.from_documents(texts, EMBEDDINGS)
     print('VECTOR DATABASE CREATED')
-    vector_db.save_local(vectordb_file_path)
+    vector_db.save_local(VECTORDB_FILE_PATH)
 
-    return vectordb_file_path
+    return VECTORDB_FILE_PATH
 
 def generate_slide_titles_from_document(topic, context):
     client = OpenAI()

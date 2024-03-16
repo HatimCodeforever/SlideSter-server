@@ -14,8 +14,16 @@ invisible_watermark
 peft
 diffusers
 langchain
+langchain-openai
+langchain-community
 tiktoken
+sentence_transformers
 unstructured
 pypdf
+<<<<<<< HEAD
 faiss-cpu
 langchain-community
+=======
+google-search-results
+faiss-cpu
+>>>>>>> 88652e03588b68ae23f48d473105748a37620039
