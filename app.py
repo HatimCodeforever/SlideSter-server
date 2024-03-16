@@ -293,6 +293,7 @@ available_tools = {
     'generate_image': generate_image
 }
 
+
 @app.route("/generate-info")
 def generate_info():
     print("Generating....")
@@ -305,35 +306,61 @@ def generate_info():
     web = doc_mongo.get('web')
     print('doc--------------------------------',doc_mongo)
     if not doc:
-        # information = {
+        if web:
+            # information = {
         # 'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
         # 'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
         # }
-        information = {}
-        for topic in topics:
-            output = generate_point_info(topic=topic, n_points=num_points)
-            information[topic] = list(output.values())[0]
-        print(information)
+            print("Generating Content from web...")
+            information = {}
+            for topic in topics:
+                output = generate_point_info_from_web(topic=topic, n_points=num_points)
+                information[topic] = list(output.values())[0]
+            print(information)
 
-        all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
-        # all_images = {}
-        for topic in topics:
-            images = fetch_images_from_web(topic)
-            all_images[topic] = images
-        keys = list(information.keys())
-        client = OpenAI()
-        assistant = client.beta.assistants.create(
-            name="SLIDESTER",
-            instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
-            model="gpt-3.5-turbo-0613",
-            tools =  tools
-        )
-        thread = client.beta.threads.create()
-        session['assistant_id'] = assistant.id
-        session['thread_id'] = thread.id
-        
-        print('ASSITANT INITIALISED: ',assistant)
-        return jsonify({"keys": keys, "information": information, "images": all_images})
+            all_images = {}
+            for topic in topics:
+                images = fetch_images_from_web(topic)
+                all_images[topic] = images
+            keys = list(information.keys())
+            client = OpenAI()
+            assistant = client.beta.assistants.create(
+                name="SLIDESTER",
+                instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
+                model="gpt-3.5-turbo-0613",
+                tools =  tools
+            )
+            session['assistant_id'] = assistant.id
+            print('ASSITANT:',assistant)
+            return jsonify({"keys": keys, "information": information, "images": all_images})
+        else:
+            # information = {
+            # 'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
+            # 'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
+            # }
+            information = {}
+            for topic in topics:
+                output = generate_point_info(topic=topic, n_points=num_points)
+                information[topic] = list(output.values())[0]
+            print(information)
+
+            all_images = {}
+            # all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
+            for topic in topics:
+                images = fetch_images_from_web(topic)
+                all_images[topic] = images
+            keys = list(information.keys())
+            print(all_images)
+            client = OpenAI()
+            assistant = client.beta.assistants.create(
+                name="SLIDESTER",
+                instructions="You are a helpful assistant. Please use the functions provided to you appropriately to help the user.",
+                model="gpt-3.5-turbo-0613",
+                tools =  tools
+            )
+            session['assistant_id'] = assistant.id
+            print('ASSITANT:',assistant)
+            return jsonify({"keys": keys, "information": information, "images": all_images})
     else:
         information = {}
         vectordb_file_path = session["vectordb_file_path"]
