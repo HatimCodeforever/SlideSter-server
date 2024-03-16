@@ -46,16 +46,16 @@ EMBEDDINGS = HuggingFaceBgeEmbeddings(
 )
 
 if DEVICE_TYPE=='cuda':
-    image_gen_model = DiffusionPipeline.from_pretrained(
+    IMAGE_GEN_MODEL = DiffusionPipeline.from_pretrained(
         "stabilityai/stable-diffusion-xl-base-1.0",
         variant="fp16",
         torch_dtype=torch.float16,
         use_auth_token = HF_AUTH_TOKEN
     ).to("cuda")
     # SET SCHEDULER
-    image_gen_model.scheduler = LCMScheduler.from_config(image_gen_model.scheduler.config)
+    IMAGE_GEN_MODEL.scheduler = LCMScheduler.from_config(IMAGE_GEN_MODEL.scheduler.config)
     # LOAD LCM-LoRA
-    image_gen_model.load_lora_weights("latent-consistency/lcm-lora-sdxl")
+    IMAGE_GEN_MODEL.load_lora_weights("latent-consistency/lcm-lora-sdxl")
 
 def generate_slide_titles(topic):
     client = OpenAI()
@@ -80,7 +80,7 @@ Topic = {topic}
 
 def generate_point_info(topic, n_points):
     client = OpenAI()
-    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it lfor a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
+    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it for a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
 
     Topics: {topics_list}
     Number of Points: {n_points_list}
@@ -143,7 +143,7 @@ def generate_image(prompt):
     print('GENERATING IMAGE ON DEVICE TYPE:',DEVICE_TYPE)
     if DEVICE_TYPE == 'cuda':
         generator = torch.manual_seed(42)
-        image = image_gen_model(
+        image = IMAGE_GEN_MODEL(
             prompt=prompt, num_inference_steps=4, generator=generator, guidance_scale=1.0
         ).images[0]
 
