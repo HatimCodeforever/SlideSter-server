@@ -14,7 +14,11 @@ invisible_watermark
 peft
 diffusers
 langchain
+langchain-openai
+langchain-community
 tiktoken
+sentence_transformers
 unstructured
 pypdf
+google-search-results
 faiss-cpu
