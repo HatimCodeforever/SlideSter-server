@@ -14,7 +14,7 @@ import ast
 from utils import generate_slide_titles, generate_point_info, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
 import torch
 import time
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from werkzeug.utils import secure_filename
 from tavily import TavilyClient

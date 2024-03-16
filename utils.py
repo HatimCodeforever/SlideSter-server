@@ -18,7 +18,6 @@ from serpapi import GoogleSearch
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
-# os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
 HF_AUTH_TOKEN = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 GOOGLE_SERP_API_KEY = os.getenv('GOOGLE_SERP_API_KEY')
@@ -79,7 +78,7 @@ Topic = {topic}
     output = ast.literal_eval(completion.choices[0].message.content)
     return output
 
-def generate_point_info(topic, n_points=5):
+def generate_point_info(topic, n_points):
     client = OpenAI()
     info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it lfor a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
 
@@ -91,7 +90,7 @@ def generate_point_info(topic, n_points=5):
         messages=[
             {
                 'role':'user',
-                'content': info_gen_prompt.format(topic=topic, n_points=n_points)
+                'content': info_gen_prompt.format(topics_list=topic, n_points_list=n_points)
             }
         ],
         response_format = {'type':'json_object'},
