@@ -293,7 +293,8 @@ def generate_point_info_from_web(topic, n_points, api_key_to_use):
     tavily_api_key = TAVILY_API_KEY1 if flag == 1 else TAVILY_API_KEY2
     client = OpenAI(api_key = openai_api_key)
     tavily_client = TavilyClient(api_key = tavily_api_key)
-    search_result = tavily_client.get_search_context(topic, search_depth="advanced", max_tokens=6000)
+    topic_str = ", ".join(topic)
+    search_result = tavily_client.get_search_context(topic_str, search_depth="advanced", max_tokens=6000)
     
     info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. You will also be provided with context from internet. Your task is to generate point-wise information on it for a powerpoint presentation using the provided context from the internet. The points should be precise and plain sentences as that used in powerpoint presentations. The number of points in each topic should be equal to the corresponding number of points in the list.
 

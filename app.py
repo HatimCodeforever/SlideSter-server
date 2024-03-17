@@ -376,9 +376,11 @@ def wait_on_run(run_id, thread_id):
         time.sleep(0.5)
         if run.status in ['failed', 'completed', 'requires_action']:
             return run
-        
+
+client = OpenAI(api_key = OPENAI_API_KEY1)
 def get_tool_result(thread_id, run_id, tools_to_call):
     tools_outputs = []
+    assistant_outputs = []
     all_tool_name = []
     for tool in tools_to_call:
         output = None
@@ -395,21 +397,25 @@ def get_tool_result(thread_id, run_id, tools_to_call):
             output = tool_to_call(topic= topic, n_points= n_points)
             print('OUTPUT:',output)
             if output:
+                assistant_output = "Content has been Generated please accept it"
+                assistant_outputs.append({'tool_call_id': tool_call_id, 'output': assistant_output})
                 tools_outputs.append({'generate_info_output': output })
         elif tool_name == 'generate_image':
             prompt = json.loads(tool_args)['prompt']
             print('Generating image...')
             image_path = generate_image(prompt)
             print('Image generated and saved at path:',image_path)
+            output = "Image has been Generated please accept it"
+            assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
             tools_outputs.append({'generate_image_output': image_path })
-        
-    return tools_outputs,all_tool_name
+        run=client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run_id, tool_outputs=assistant_outputs)
+    return tools_outputs,all_tool_name,run
         
 @app.route('/chatbot-route', methods=['POST'])
 def chatbot_route():
     data = request.get_json()
     print(data)
-    tool_check = []
+    tool = None
     query = data.get('userdata', '')
     if query:         
         client = OpenAI(api_key=OPENAI_API_KEY1)
@@ -432,29 +438,44 @@ def chatbot_route():
         if run.status == 'failed':
             print(run.error)
         elif run.status == 'requires_action':
-            all_output,tool = get_tool_result(thread_id, run.id, run.required_action.submit_tool_outputs.tool_calls)
-            # run = wait_for_run_completion(thread.id, run.id)
-        messages = client.beta.threads.messages.list(thread_id=thread_id)
+            all_output,tool,run = get_tool_result(thread_id, run.id, run.required_action.submit_tool_outputs.tool_calls)
+            run = wait_on_run(run.id,thread_id)
+        messages = client.beta.threads.messages.list(thread_id=thread_id,order="asc")
+        print('message',messages)
+        content = None
+        for thread_message in messages.data:
+            content = thread_message.content
+        print("Content List", content)
+        print('tool------------------',tool)
+        if tool==None:
+            chatbot_reply = content[0].text.value
+            print("Chatbot reply-------------",chatbot_reply)
+            response = {'chatbotResponse': chatbot_reply,'function_name': 'normal_chat'} 
+            return jsonify(response)
+        else:
+            if "generate_information" in tool:
+                print('Generating information')
+                print(all_output[0]['generate_info_output'])
+                chatbot_reply = "Yes sure! Your information has been added on your current Slide!"
+                keys = list(all_output[0]['generate_info_output'])
+                all_images= {}
+                images = fetch_images_from_web(keys[0])
+                all_images[keys[0]] = images
+                response = {'chatbotResponse': chatbot_reply, "images": all_images,'function_name': 'generate_information','key': keys, 'information': all_output[0]['generate_info_output']} 
+                return jsonify(response)
+            elif "generate_image" in tool:
+                print('generate_image')
+                image_path = all_output[0]['generate_image_output']
+                chatbot_reply = "Yes sure! Your image has been added on your current Slide!"
+                image_url = f"/send_image/{image_path}"
+                # Create a response object to include both image and JSON data
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                return jsonify(response)
+            else:
+                return jsonify({'error': 'User message not provided'}), 400
+
         
-        if "generate_information" in tool:
-            print('Generating information')
-            print(all_output[0]['generate_info_output'])
-            chatbot_reply = "Yes sure! Your information has been added on your current Slide!"
-            keys = list(all_output[0]['generate_info_output'])
-            all_images= {}
-            images = fetch_images_from_web(keys[0])
-            all_images[keys[0]] = images
-            response = {'chatbotResponse': chatbot_reply, "images": all_images,'function_name': 'generate_information','key': keys, 'information': all_output[0]['generate_info_output']} 
-        elif "generate_image" in tool:
-            print('generate_image')
-            image_path = all_output[0]['generate_image_output']
-            chatbot_reply = "Yes sure! Your image has been added on your current Slide!"
-            image_url = f"/send_image/{image_path}"
-            # Create a response object to include both image and JSON data
-            response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
-        return jsonify(response)
-    else:
-        return jsonify({'error': 'User message not provided'}), 400
+   
     
 
 @app.route('/send_image/<image_path>', methods=['GET'])
