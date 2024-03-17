@@ -17,8 +17,10 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from serpapi import GoogleSearch
 
 
-openai_api_key1 = os.getenv("OPENAI_API_KEY1")
-openai_api_key2 = os.getenv("OPENAI_API_KEY2")
+OPENAI_API_KEY1 = os.getenv("OPENAI_API_KEY1")
+OPENAI_API_KEY2 = os.getenv("OPENAI_API_KEY2")
+TAVILY_API_KEY1 = os.getenv("TAVILY_API_KEY1")
+TAVILY_API_KEY2 = os.getenv("TAVILY_API_KEY2")
 HF_AUTH_TOKEN = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 GOOGLE_SERP_API_KEY = os.getenv('GOOGLE_SERP_API_KEY')
@@ -59,7 +61,7 @@ if DEVICE_TYPE=='cuda':
     IMAGE_GEN_MODEL.load_lora_weights("latent-consistency/lcm-lora-sdxl")
 
 def generate_slide_titles(topic):
-    client = OpenAI(api_key=openai_api_key1)
+    client = OpenAI(api_key=OPENAI_API_KEY1)
     title_suggestion_prompt = """Generate 10 compelling slide titles for a PowerPoint Presentation on the given topic. Format the output in JSON, with each key representing the slide number and its corresponding value being the slide title. Be creative and ensure that the titles cover key aspects of the topic, providing a comprehensive overview.
 
 Topic = {topic}
@@ -82,12 +84,15 @@ Topic = {topic}
 def generate_point_info(topic, n_points, api_key_to_use):
     flag = 1 if api_key_to_use== 'first' else 2
     print(f'THREAD {flag} RUNNING...')
-    openai_api_key = openai_api_key1 if flag == 1 else openai_api_key2
+    openai_api_key = OPENAI_API_KEY1 if flag == 1 else OPENAI_API_KEY2
     client = OpenAI(api_key=openai_api_key)
-    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it for a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
+    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it for a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations.
 
     Topics: {topics_list}
     Number of Points: {n_points_list}
+
+    Generate information on these topics corresponding to the number of points in the list. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
+
 """
     completion = client.chat.completions.create(
         model = 'gpt-3.5-turbo-1106',
@@ -105,10 +110,10 @@ def generate_point_info(topic, n_points, api_key_to_use):
 
     return output
 
-def chat_generate_point_info(topic, api_key_to_use, n_points=5):
+def chat_generate_point_info(topic, n_points=5, api_key_to_use='first'):
     flag = 1 if api_key_to_use== 'first' else 2
     print(f'THREAD {flag} RUNNING...')
-    openai_api_key = openai_api_key1 if flag == 1 else openai_api_key2
+    openai_api_key = OPENAI_API_KEY1 if flag == 1 else OPENAI_API_KEY2
     client = OpenAI(api_key=openai_api_key)
     info_gen_prompt = """You will be given a topic and your task is to generate {n_points} points of information on it. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
 
@@ -132,15 +137,14 @@ Topic : {topic}
 
 def fetch_images_from_web(topic):
     params = {
-    "q": topic,
-    "engine": "google_images",
-    "ijn": "0",
-    "api_key":  GOOGLE_SERP_API_KEY
+        "q": topic,
+        "engine": "google_images",
+        "ijn": "0",
+        "api_key":  GOOGLE_SERP_API_KEY
     }
-
     search = GoogleSearch(params)
     results = search.get_dict()
-    print("Images result",results)
+    print("Images result", results['images_results'])
     image_results = results["images_results"]
     image_links = [i['original'] for i in image_results[:10]]
     return image_links
@@ -191,7 +195,7 @@ def ingest(file_path):
     return VECTORDB_FILE_PATH
 
 def generate_slide_titles_from_document(topic, context):
-    client = OpenAI()
+    client = OpenAI(api_key = OPENAI_API_KEY1)
     info_gen_prompt = """Generate 5 most relvant and compelling slide titles for a PowerPoint Presentation on the given topic and based on the given context. \
     It should cover the major aspects of the context \
     Format the output in JSON, with each key representing the slide number and its corresponding value being the slide title. \
@@ -218,20 +222,27 @@ def generate_slide_titles_from_document(topic, context):
 
     return output
 
-def generate_point_info_from_document(topic, n_points, context):
-    client = OpenAI(api_key=openai_api_key1)
-    info_gen_prompt = """You will be given a topic and some context. Your task is to generate {n_points} points of information using the context. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
+def generate_point_info_from_document(topic, n_points, context, api_key_to_use):
+    flag = 1 if api_key_to_use== 'first' else 2
+    print(f'THREAD {flag} RUNNING...')
+    openai_api_key = OPENAI_API_KEY1 if flag == 1 else OPENAI_API_KEY2
+    client = OpenAI(api_key=openai_api_key)
+    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. You will also be provided with context from a document. Your task is to generate point-wise information on it for a powerpoint presentation using the provided context. The points should be precise and plain sentences as that used in powerpoint presentations. The number of points in each topic should be equal to the corresponding number of points in the list.
 
-Topic : {topic}
+context : ```
+{context}
+```
+Topics List : {topics_list}
+number of points : {n_points}
 
-context : {context}
+Use the provided context to generate point-wise information. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
 """
     completion = client.chat.completions.create(
         model = 'gpt-3.5-turbo-1106',
         messages=[
             {
                 'role':'user',
-                'content': info_gen_prompt.format(topic=topic, n_points=n_points, context= context)
+                'content': info_gen_prompt.format(topics_list=topic, n_points=n_points, context= context)
             }
         ],
         response_format = {'type':'json_object'},
@@ -244,8 +255,8 @@ context : {context}
 
 
 def generate_slide_titles_from_web(topic):
-    client = OpenAI(api_key=openai_api_key1)
-    tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+    client = OpenAI(api_key=OPENAI_API_KEY1)
+    tavily_client = TavilyClient(api_key= TAVILY_API_KEY1)
     search_result = tavily_client.get_search_context(topic, search_depth="advanced", max_tokens=4000)
     
     info_gen_prompt = """Generate 10 most relevant and compelling slide titles for a PowerPoint Presentation on the given topic, \ 
@@ -275,23 +286,31 @@ def generate_slide_titles_from_web(topic):
 
     return output
 
-def generate_point_info_from_web(topic, n_points):
-    client = OpenAI(api_key=openai_api_key1)
-    tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
-    search_result = tavily_client.get_search_context(topic, search_depth="advanced", max_tokens=4000)
+def generate_point_info_from_web(topic, n_points, api_key_to_use):
+    flag = 1 if api_key_to_use== 'first' else 2
+    print(f'THREAD {flag} RUNNING...')
+    openai_api_key = OPENAI_API_KEY1 if flag == 1 else OPENAI_API_KEY2
+    tavily_api_key = TAVILY_API_KEY1 if flag == 1 else TAVILY_API_KEY2
+    client = OpenAI(api_key = openai_api_key)
+    tavily_client = TavilyClient(api_key = tavily_api_key)
+    search_result = tavily_client.get_search_context(topic, search_depth="advanced", max_tokens=6000)
     
-    info_gen_prompt = """You will be given a topic and search results from the internet. Your task is to generate {n_points} points of information using the search results. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
+    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. You will also be provided with context from internet. Your task is to generate point-wise information on it for a powerpoint presentation using the provided context from the internet. The points should be precise and plain sentences as that used in powerpoint presentations. The number of points in each topic should be equal to the corresponding number of points in the list.
 
-Topic : {topic}
+Context from Internet: ```
+{search_result}
+```
+Topics List : {topics_list}
+number of points : {n_points}
 
-Search Results : {search_result}
+Use the provided web context to generate point-wise information. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
 """
     completion = client.chat.completions.create(
         model = 'gpt-3.5-turbo-1106',
         messages=[
             {
                 'role':'user',
-                'content': info_gen_prompt.format(topic=topic, n_points=n_points, search_result= search_result)
+                'content': info_gen_prompt.format(topics_list=topic, n_points=n_points, search_result= search_result)
             }
         ],
         response_format = {'type':'json_object'},

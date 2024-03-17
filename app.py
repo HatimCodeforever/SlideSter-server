@@ -11,7 +11,7 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import openai_api_key1,generate_slide_titles,generate_slide_titles_from_web, generate_point_info, generate_point_info_from_web, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
+from utils import OPENAI_API_KEY1,generate_slide_titles,generate_slide_titles_from_web, generate_point_info, generate_point_info_from_web, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
 import torch
 import time
 from langchain_community.vectorstores import FAISS
@@ -114,8 +114,8 @@ def model1():
     web = data.get("web")
     # print(titles)
     # print(points)
-    print("doc status",doc)
-    print("web status",web)
+    print("Doc status:",doc)
+    print("Web status:",web)
     ppt_data = {
       "titles": titles,
       "points": points,
@@ -147,8 +147,7 @@ def suggest_titles():
     domain = request.form.get('domain')
     topic = request.form.get('topic')
     web = request.form.get('web')
-    print("web",web)
-    print("type",type(web))
+    print("Web Status:",web)
     if 'file' not in request.files:
        if web=="true":
         print("Using Web Search")
@@ -172,7 +171,7 @@ def suggest_titles():
         file_path = 'pdf-file/'+ secure_filename(file.filename)
         # embeddings = OpenAIEmbeddings()
         vectordb_file_path = ingest(file_path)
-        vector_db= FAISS.load_local(vectordb_file_path, EMBEDDINGS)
+        vector_db= FAISS.load_local(vectordb_file_path, EMBEDDINGS, allow_dangerous_deserialization=True)
         query1 = topic
         query2 = "Technology or architecture"
         session["vectordb_file_path"]=vectordb_file_path
@@ -287,7 +286,7 @@ def generate_info():
     doc = doc_mongo.get('doc')
     web = doc_mongo.get('web')
     print('doc--------------------------------',doc_mongo)
-    client = OpenAI(api_key=openai_api_key1)
+    client = OpenAI(api_key=OPENAI_API_KEY1)
     assistant = client.beta.assistants.create(
         name="SLIDESTER",
         instructions="You are a helpful assistant for the Slidester presentation platform. Please use the functions provided to you appropriately to help the user.",
@@ -303,8 +302,8 @@ def generate_info():
         if web:
             with ThreadPoolExecutor() as executor:
                 print("Generating Content from web...")
-                future_content_one = executor.submit(generate_point_info_from_web, topics_split_one, num_points_split_one)
-                future_content_two = executor.submit(generate_point_info_from_web, topics_split_two, num_points_split_two)
+                future_content_one = executor.submit(generate_point_info_from_web, topics_split_one, num_points_split_one, 'first')
+                future_content_two = executor.submit(generate_point_info_from_web, topics_split_two, num_points_split_two, 'second')
                 content_one = future_content_one.result()
                 content_two = future_content_two.result()
                 information = {}
@@ -343,15 +342,20 @@ def generate_info():
     else:
         with ThreadPoolExecutor() as executor:
             vectordb_file_path = session["vectordb_file_path"]
-            vector_db = FAISS.load_local(vectordb_file_path, EMBEDDINGS)
-            rel_docs_one = vector_db.similarity_search(topics_split_one, k=10)
-            rel_docs_two = vector_db.similarity_search(topics_split_two, k=10)
+            vector_db = FAISS.load_local(vectordb_file_path, EMBEDDINGS, allow_dangerous_deserialization=True)
+            topics_split_one_text = ', '.join(topics_split_one)
+            topics_split_two_text = ', '.join(topics_split_two)
+            rel_docs_one = vector_db.similarity_search(topics_split_one_text, k=10)
+            rel_docs_two = vector_db.similarity_search(topics_split_two_text, k=10)
             context_one = [doc.page_content for doc in rel_docs_one]
             context_two = [doc.page_content for doc in rel_docs_two]
-            future_content_one = executor.submit(generate_point_info_from_document, topics_split_one, num_points_split_one, context_one)
-            future_content_two = executor.submit(generate_point_info_from_document, topics_split_two, num_points_split_two, context_two)
-            information = future_content_one.copy()
-            information.update(future_content_two)
+            future_content_one = executor.submit(generate_point_info_from_document, topics_split_one, num_points_split_one, context_one, 'first')
+            future_content_two = executor.submit(generate_point_info_from_document, topics_split_two, num_points_split_two, context_two, 'second')
+            content_one = future_content_one.result()
+            content_two = future_content_two.result()
+            information = {}
+            information.update(content_one)
+            information.update(content_two)
             print(information)
             keys = list(information.keys())
             all_images = {}
@@ -362,7 +366,7 @@ def generate_info():
 
 
 def wait_on_run(run_id, thread_id):
-    client = OpenAI(api_key=openai_api_key1)
+    client = OpenAI(api_key=OPENAI_API_KEY1)
     while True:
         run = client.beta.threads.runs.retrieve(
             thread_id=thread_id,
@@ -408,7 +412,7 @@ def chatbot_route():
     tool_check = []
     query = data.get('userdata', '')
     if query:         
-        client = OpenAI(api_key=openai_api_key1)
+        client = OpenAI(api_key=OPENAI_API_KEY1)
         assistant_id = session['assistant_id']
         print('ASSISTANT ID',assistant_id)
         thread_id = session['thread_id']
