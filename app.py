@@ -11,7 +11,7 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import generate_slide_titles,generate_slide_titles_from_web, generate_point_info, generate_point_info_from_web, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
+from utils import openai_api_key1,generate_slide_titles,generate_slide_titles_from_web, generate_point_info, generate_point_info_from_web, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
 import torch
 import time
 from langchain_community.vectorstores import FAISS
@@ -29,7 +29,6 @@ passw = os.getenv("passw")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 connection_string = f"mongodb+srv://hatim:{passw}@cluster0.f7or37n.mongodb.net/?retryWrites=true&w=majority"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-openai.api_key = os.getenv('OPENAI_API_KEY')
     
 
 def MongoDB(collection_name):
@@ -278,17 +277,17 @@ def generate_info():
     collection = MongoDB('ppt')
     doc_mongo = collection.find_one({'_id': ObjectId(session['info_id'])})
     topics = doc_mongo.get('titles')
-    topics_split_one = topics[:len(topics)/2]
-    topics_split_two = topics[len(topics)/2:]
+    topics_split_one = topics[:int(len(topics)/2)]
+    topics_split_two = topics[int(len(topics)/2):]
     num_points = doc_mongo.get('points')
-    num_points_split_one = num_points[:len(num_points)/2]
-    num_points_split_two = num_points[len(num_points)/2:]
+    num_points_split_one = num_points[:int(len(num_points)/2)]
+    num_points_split_two = num_points[int(len(num_points)/2):]
 
     print("doc status",doc_mongo)
     doc = doc_mongo.get('doc')
     web = doc_mongo.get('web')
     print('doc--------------------------------',doc_mongo)
-    client = OpenAI()
+    client = OpenAI(api_key=openai_api_key1)
     assistant = client.beta.assistants.create(
         name="SLIDESTER",
         instructions="You are a helpful assistant for the Slidester presentation platform. Please use the functions provided to you appropriately to help the user.",
@@ -306,8 +305,11 @@ def generate_info():
                 print("Generating Content from web...")
                 future_content_one = executor.submit(generate_point_info_from_web, topics_split_one, num_points_split_one)
                 future_content_two = executor.submit(generate_point_info_from_web, topics_split_two, num_points_split_two)
-                information = future_content_one.copy()
-                information.update(future_content_two)
+                content_one = future_content_one.result()
+                content_two = future_content_two.result()
+                information = {}
+                information.update(content_one)
+                information.update(content_two)
                 print(information)
                 keys = list(information.keys())
                 all_images = {}
@@ -323,8 +325,12 @@ def generate_info():
                 # }
                 future_content_one = executor.submit(generate_point_info, topics_split_one, num_points_split_one, 'first')
                 future_content_two = executor.submit(generate_point_info, topics_split_two, num_points_split_two, 'second')
-                information = future_content_one.copy()
-                information.update(future_content_two)
+                content_one = future_content_one.result()
+                content_two = future_content_two.result()
+                information = {}
+                information.update(content_one)
+                information.update(content_two)
+                print("content-------------",information)
                 print(information)
                 keys = list(information.keys())
                 all_images = {}
@@ -356,7 +362,7 @@ def generate_info():
 
 
 def wait_on_run(run_id, thread_id):
-    client = OpenAI()
+    client = OpenAI(api_key=openai_api_key1)
     while True:
         run = client.beta.threads.runs.retrieve(
             thread_id=thread_id,
@@ -402,7 +408,7 @@ def chatbot_route():
     tool_check = []
     query = data.get('userdata', '')
     if query:         
-        client = OpenAI()
+        client = OpenAI(api_key=openai_api_key1)
         assistant_id = session['assistant_id']
         print('ASSISTANT ID',assistant_id)
         thread_id = session['thread_id']

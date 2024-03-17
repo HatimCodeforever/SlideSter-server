@@ -17,9 +17,8 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from serpapi import GoogleSearch
 
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
 openai_api_key1 = os.getenv("OPENAI_API_KEY1")
-openai_api_key1 = os.getenv("OPENAI_API_KEY2")
+openai_api_key2 = os.getenv("OPENAI_API_KEY2")
 HF_AUTH_TOKEN = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 GOOGLE_SERP_API_KEY = os.getenv('GOOGLE_SERP_API_KEY')
@@ -60,7 +59,7 @@ if DEVICE_TYPE=='cuda':
     IMAGE_GEN_MODEL.load_lora_weights("latent-consistency/lcm-lora-sdxl")
 
 def generate_slide_titles(topic):
-    client = OpenAI()
+    client = OpenAI(api_key=openai_api_key1)
     title_suggestion_prompt = """Generate 10 compelling slide titles for a PowerPoint Presentation on the given topic. Format the output in JSON, with each key representing the slide number and its corresponding value being the slide title. Be creative and ensure that the titles cover key aspects of the topic, providing a comprehensive overview.
 
 Topic = {topic}
@@ -81,9 +80,9 @@ Topic = {topic}
     return output
 
 def generate_point_info(topic, n_points, api_key_to_use):
-    flag = 1 if api_key_to_use== 'first' else (2 if api_key_to_use=='second' else 3 )
+    flag = 1 if api_key_to_use== 'first' else 2
     print(f'THREAD {flag} RUNNING...')
-    openai_api_key = openai_api_key1 if flag == 1 else(openai_api_key2 if flag == 2 else openai_api_key3)
+    openai_api_key = openai_api_key1 if flag == 1 else openai_api_key2
     client = OpenAI(api_key=openai_api_key)
     info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it for a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
 
@@ -107,9 +106,9 @@ def generate_point_info(topic, n_points, api_key_to_use):
     return output
 
 def chat_generate_point_info(topic, api_key_to_use, n_points=5):
-    flag = 1 if api_key_to_use== 'first' else (2 if api_key_to_use=='second' else 3 )
+    flag = 1 if api_key_to_use== 'first' else 2
     print(f'THREAD {flag} RUNNING...')
-    openai_api_key = openai_api_key1 if flag == 1 else(openai_api_key2 if flag == 2 else openai_api_key3)
+    openai_api_key = openai_api_key1 if flag == 1 else openai_api_key2
     client = OpenAI(api_key=openai_api_key)
     info_gen_prompt = """You will be given a topic and your task is to generate {n_points} points of information on it. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
 
@@ -141,6 +140,7 @@ def fetch_images_from_web(topic):
 
     search = GoogleSearch(params)
     results = search.get_dict()
+    print("Images result",results)
     image_results = results["images_results"]
     image_links = [i['original'] for i in image_results[:10]]
     return image_links
@@ -219,7 +219,7 @@ def generate_slide_titles_from_document(topic, context):
     return output
 
 def generate_point_info_from_document(topic, n_points, context):
-    client = OpenAI()
+    client = OpenAI(api_key=openai_api_key1)
     info_gen_prompt = """You will be given a topic and some context. Your task is to generate {n_points} points of information using the context. The points should be precise and plain sentences. Format the output as a JSON dictionary, where the key is the topic name and the value is a list of points.
 
 Topic : {topic}
@@ -244,7 +244,7 @@ context : {context}
 
 
 def generate_slide_titles_from_web(topic):
-    client = OpenAI()
+    client = OpenAI(api_key=openai_api_key1)
     tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
     search_result = tavily_client.get_search_context(topic, search_depth="advanced", max_tokens=4000)
     
@@ -276,7 +276,7 @@ def generate_slide_titles_from_web(topic):
     return output
 
 def generate_point_info_from_web(topic, n_points):
-    client = OpenAI()
+    client = OpenAI(api_key=openai_api_key1)
     tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
     search_result = tavily_client.get_search_context(topic, search_depth="advanced", max_tokens=4000)
     
