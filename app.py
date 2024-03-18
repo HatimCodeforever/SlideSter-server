@@ -428,7 +428,7 @@ def generate_info():
                     images = fetch_images_from_web(topic)
                     all_images[topic] = images
                 print("information:----------",information)
-                print("Images:----------",all_images)
+                # print("Images:----------",all_images)
                 # all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
                 return jsonify({"keys": keys, "information": information, "images": all_images,"domain": domain, "main_topic": main_topic})
     else:
@@ -485,7 +485,9 @@ def get_tool_result(thread_id, run_id, tools_to_call):
         all_tool_name.append(tool_name)
         if tool_name == 'generate_information':
             topic = json.loads(tool_args)['topic']
-            n_points = json.loads(tool_args)['n_points']
+            n_points = ""
+            if 'n_points' in json.loads(tool_args):
+                n_points = json.loads(tool_args)['n_points']
             output = tool_to_call(topic= topic, n_points= n_points)
             print('OUTPUT:',output)
             if output:
@@ -500,6 +502,28 @@ def get_tool_result(thread_id, run_id, tools_to_call):
             output = "Image has been Generated please accept it"
             assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
             tools_outputs.append({'generate_image_output': image_path })
+        elif tool_name == 'generate_goals':
+            summary = session['summary']
+            n_goals = 2
+            if 'n_goals' in json.loads(tool_args):
+                n_goals = json.loads(tool_args)['n_goals']
+            persona = None
+            if 'persona' in json.loads(tool_args):
+                persona = json.loads(tool_args)['persona']
+            goals = generate_goals(summary,n_goals,persona)
+            output = "Goals has been Generated please accept it"
+            assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
+            tools_outputs.append({'generate_goal_output': goals })
+        elif tool_name == 'generate_visualizations':
+            summary = session['summary']
+            goals = json.loads(tool_args)['user_query']
+            visualization_image,visualization_chart = generate_visualizations(summary,goals)
+            image_path = "assistant_charts/chart1.png"
+            session['chart'] = visualization_chart[0].code
+            visualization_image.save(image_path)
+            output = "Chart has been generated"
+            assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
+            tools_outputs.append({'generate_visualizations_output': image_path })
         run=client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run_id, tool_outputs=assistant_outputs)
     return tools_outputs,all_tool_name,run
         
@@ -562,16 +586,47 @@ def chatbot_route():
                 # Create a response object to include both image and JSON data
                 response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
                 return jsonify(response)
+            elif "generate_goals" in tool:
+                print('Generating Goals')
+                goals = all_output[0]['generate_goal_output']
+                print("Goal",goals)
+                chatbot_reply =  ",".join([goal.visualization for goal in goals])
+                # Create a response object to include both image and JSON data
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_goals'}
+                return jsonify(response)
+            elif "generate_visualizations" in tool:
+                print('Generating Charts')
+                image_path = all_output[0]['generate_visualizations_output']
+                chatbot_reply = "Yes sure! Your chart has been added on your current Slide!"
+                image_url = f"/send_image/{image_path}"
+                # Create a response object to include both image and JSON data
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                return jsonify(response)
             else:
                 return jsonify({'error': 'User message not provided'}), 400
 
-        
-   
-    
-
 @app.route('/send_image/<image_path>', methods=['GET'])
 def send_image(image_path):
-    return send_file(image_path, mimetype='image/jpeg')
+    return send_file(image_path, mimetype='image/png')
+
+@app.route('/upload-csv', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if file:
+        filename = file.filename
+        file_path = os.path.join('assistant_csv', filename)
+        file.save(file_path)
+        summary =  generate_summary(file_path)
+        session['summary'] = summary
+        print("Summary", summary)
+        chatbot_reply = ".CSV file has been successfully uplaoded."
+        return jsonify({'message': 'File uploaded successfully','chatbotResponse': chatbot_reply ,'filename': filename}), 200
+    else:
+        return jsonify({'error': 'Upload failed'}), 500
 
 if __name__ == "__main__":
   app.run(debug=True)

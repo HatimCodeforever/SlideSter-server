@@ -25,9 +25,11 @@ OPENAI_API_KEY1 = os.getenv("OPENAI_API_KEY1")
 OPENAI_API_KEY2 = os.getenv("OPENAI_API_KEY2")
 TAVILY_API_KEY1 = os.getenv("TAVILY_API_KEY1")
 TAVILY_API_KEY2 = os.getenv("TAVILY_API_KEY2")
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY2
+
 HF_AUTH_TOKEN = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-LIDA = Manager(text_gen = llm("openai"), api_key= OPENAI_API_KEY2)
+LIDA = Manager(text_gen = llm("openai"))
 TEXTGEN_CONFIG_FOR_LIDA = TextGenerationConfig(n=1, temperature=0.5, model="gpt-3.5-turbo-1106", use_cache=True)
 GOOGLE_SERP_API_KEY = os.getenv('GOOGLE_SERP_API_KEY')
 VECTORDB_FILE_PATH = 'faiss_index'
@@ -337,7 +339,7 @@ def generate_summary(csv_file_path):
     return summary
 
 def generate_goals(summary, n_goals, persona):
-    if persona:
+    if not persona==None:
         print('Generating goals with given persona...')
         goals = LIDA.goals(summary, n= n_goals, persona=persona, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
     else:
