@@ -147,6 +147,8 @@ def suggest_titles():
     domain = request.form.get('domain')
     topic = request.form.get('topic')
     web = request.form.get('web')
+    session['domain'] = domain
+    session['topic'] = topic
     print("Web Status:",web)
     if 'file' not in request.files:
        if web=="true":
@@ -273,6 +275,8 @@ available_tools = {
 @app.route("/generate-info")
 def generate_info():
     print("Generating....")
+    main_topic = session['topic']
+    domain = session['domain']
     collection = MongoDB('ppt')
     doc_mongo = collection.find_one({'_id': ObjectId(session['info_id'])})
     topics = doc_mongo.get('titles')
@@ -315,7 +319,7 @@ def generate_info():
                 for topic in topics:
                     images = fetch_images_from_web(topic)
                     all_images[topic] = images
-                return jsonify({"keys": keys, "information": information, "images": all_images})
+                return jsonify({"keys": keys, "information": information, "images": all_images, "domain": domain, "main_topic": main_topic})
         else:
             with ThreadPoolExecutor() as executor:
                 # information = {
@@ -329,16 +333,15 @@ def generate_info():
                 information = {}
                 information.update(content_one)
                 information.update(content_two)
-                print("content-------------",information)
-                print(information)
                 keys = list(information.keys())
                 all_images = {}
                 for topic in topics:
                     images = fetch_images_from_web(topic)
                     all_images[topic] = images
-                print(information)
+                print("information:----------",information)
+                print("Images:----------",all_images)
                 # all_images = {'Introduction to Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://www.globaltechcouncil.org/wp-content/uploads/2021/06/Machine-Learning-Trends-That-Will-Transform-The-World-in-2021-1.jpg', 'http://csr.briskstar.com/Content/Blogs/ML Blog.jpg', 'https://s3.amazonaws.com/media.the-next-tech.com/wp-content/uploads/2021/01/19132558/Top-6-Machine-Learning-Trends-you-should-watch-in-2021.jpg'], 'Future Trends in Machine Learning': ['https://onpassive.com/blog/wp-content/uploads/2020/12/AI-01-12-2020-860X860-Kumar.jpg', 'https://tenoblog.com/wp-content/uploads/2019/03/Machine-Learning-Technologies.jpg', 'https://www.flexsin.com/blog/wp-content/uploads/2019/05/1600_900_machine_learning.jpg', 'https://tai-software.com/wp-content/uploads/2020/01/machine-learning.jpg', 'https://www.techolac.com/wp-content/uploads/2021/07/robot-1536x1024.jpg']}
-                return jsonify({"keys": keys, "information": information, "images": all_images})
+                return jsonify({"keys": keys, "information": information, "images": all_images,"domain": domain, "main_topic": main_topic})
     else:
         with ThreadPoolExecutor() as executor:
             vectordb_file_path = session["vectordb_file_path"]
@@ -362,7 +365,7 @@ def generate_info():
             for topic in topics:
                 images = fetch_images_from_web(topic)
                 all_images[topic] = images
-            return jsonify({"keys": keys, "information": information, "images": all_images})
+            return jsonify({"keys": keys, "information": information, "images": all_images ,"domain": domain, "main_topic": main_topic})
 
 
 def wait_on_run(run_id, thread_id):
