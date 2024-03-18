@@ -358,7 +358,7 @@ def refine_visualizations(summary, code, instructions, library='seaborn'):
     img = base64_to_image(image_base64)
     return img ,edited_charts
 
-def generate_recommendations(code, summary, n_recc=1, library='seaborn'):
+def recommend_visualizations(code, summary, n_recc=1, library='seaborn'):
     recommended_charts =  LIDA.recommend(code=code, summary=summary, n=n_recc, library = library, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
     image_base64 = recommended_charts[0].raster
     img = base64_to_image(image_base64)

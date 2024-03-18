@@ -23,175 +23,10 @@ from tavily import TavilyClient
 
 load_dotenv()
 
-
 app = Flask(__name__)
 passw = os.getenv("passw")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 connection_string = f"mongodb+srv://hatim:{passw}@cluster0.f7or37n.mongodb.net/?retryWrites=true&w=majority"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-
-def MongoDB(collection_name):
-    client = MongoClient(connection_string)
-    db = client.get_database("SlideSter")
-    records = db.get_collection(collection_name)
-    return records
-
-
-def generate_token(user_id):
-    payload = {"user_id": user_id, "exp": datetime.utcnow() + timedelta(hours=1)}
-    token = jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
-    return token
-
-
-def create_session(user_email):
-    session["user_email"] = user_email
-
-
-# records = MongoDB('register')
-
-
-@app.route("/adduser", methods=["POST"])
-def adduser():
-    new_record = request.json
-    email = new_record["email"]
-    existing_user = MongoDB('register').find_one({"email": email})
-    if existing_user:
-        response = {"message": "exists"}
-        return jsonify(response)
-
-    salt = bcrypt.gensalt()
-    new_record["password"] = bcrypt.hashpw(new_record["password"].encode("utf-8"), salt)
-    result = MongoDB('register').insert_one(new_record)
-
-    if result.inserted_id:
-        token = generate_token(str(result.inserted_id))
-        response = {"message": "success", "token": token}
-        return jsonify(response)
-    else:
-        response = {"message": "failed"}
-        return jsonify(response)
-
-
-@app.route("/home")
-def home():
-    return "hello"
-
-
-@app.route("/profile", methods=["GET"])
-def profile():
-    user_email = session.get("user_email")
-    response2 = MongoDB('register').find_one({"email": user_email})
-    del response2["_id"]
-    del response2["password"]
-    return jsonify(response2)
-
-
-@app.route("/login", methods=["POST"])
-def login():
-    new_record = request.json
-    user = MongoDB('register').find_one({"email": new_record["email"]})
-    if user:
-        if bcrypt.checkpw(new_record["password"].encode("utf-8"), user["password"]):
-            token = generate_token(str(user["_id"]))
-            response = {"message": "success", "token": token}
-            create_session(str(user["email"]))
-            return jsonify(response)
-        else:
-            response = {"message": "password"}
-            return jsonify(response)
-    else:
-        response = {"message": "username"}
-        return jsonify(response)
-
-
-@app.route("/model1", methods=["POST"])
-def model1():
-    data = request.json
-    titles = data.get("titles")
-    points = data.get("points")
-    doc = data.get("doc")
-    web = data.get("web")
-    # print(titles)
-    # print(points)
-    print("Doc status:",doc)
-    print("Web status:",web)
-    ppt_data = {
-      "titles": titles,
-      "points": points,
-      "doc" : doc,
-      "web" : web
-    }
-    collection = MongoDB('ppt')
-    result=collection.insert_one(ppt_data)
-    session['info_id'] = str(result.inserted_id)
-    response = {"message": True}
-    return jsonify(response)
-
-
-@app.route("/logout", methods=["GET"])
-def logout():
-    session.clear()
-    response = {"message": "success"}
-    return jsonify(response)
-
-@app.route("/suggest-titles", methods=["POST"])
-def suggest_titles():
-    # final_suggestion_list = [
-    #     'Introduction', 'Applications', 'Types of Machine Learning',
-    #     'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
-    #     'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
-    #     'Future Trends'
-    #     ]
-    
-    domain = request.form.get('domain')
-    topic = request.form.get('topic')
-    web = request.form.get('web')
-    print("Web Status:",web)
-    if 'file' not in request.files:
-       if web=="true":
-        print("Using Web Search")
-        output = generate_slide_titles_from_web(topic)
-        response_list = list(output.values())
-        response = {"message": response_list,"doc":False}
-        return jsonify(response)
-        
-       else: 
-        print("Without Web Search")
-        output = generate_slide_titles(topic)
-        response_list = list(output.values())
-        print(response_list)
-        response = {"message": response_list,"doc":False}
-        return jsonify(response)
-    else:
-        file = request.files['file']
-        print("print file ",file)
-        local_path = 'pdf-file'
-        file.save(os.path.join(local_path, secure_filename(file.filename)))
-        file_path = 'pdf-file/'+ secure_filename(file.filename)
-        # embeddings = OpenAIEmbeddings()
-        vectordb_file_path = ingest(file_path)
-        vector_db= FAISS.load_local(vectordb_file_path, EMBEDDINGS, allow_dangerous_deserialization=True)
-        query1 = topic
-        query2 = "Technology or architecture"
-        session["vectordb_file_path"]=vectordb_file_path
-        docs1 = vector_db.similarity_search(query1)
-        docs2 = vector_db.similarity_search(query2)
-        all_docs = docs1 + docs2
-        context = [doc.page_content for doc in all_docs]
-        output = generate_slide_titles_from_document(topic, context)
-        response_list = list(output.values())
-        response = {"message": response_list,"doc":True}
-        return jsonify(response)
-
-@app.route('/generate-new-info', methods=['POST'])
-def generate_new_info():
-    data = request.get_json()
-    topic = data.get('topic')
-    information = generate_point_info(topic=topic)
-    print(information)
-    keys = list(information.keys())
-    return jsonify({"key": keys, "information": information})
 
 slide_number = 3
 tools = [
@@ -356,9 +191,173 @@ available_tools = {
     'generate_information': chat_generate_point_info,
     'generate_image': generate_image,
     'generate_goals': generate_goals,
-    'generate_visualizations': generate_visualizations
+    'generate_visualizations': generate_visualizations,
+    'edit_visualizations': refine_visualizations,
+    'recommend_visualizations': recommend_visualizations
 }
+    
 
+def MongoDB(collection_name):
+    client = MongoClient(connection_string)
+    db = client.get_database("SlideSter")
+    records = db.get_collection(collection_name)
+    return records
+
+
+def generate_token(user_id):
+    payload = {"user_id": user_id, "exp": datetime.utcnow() + timedelta(hours=1)}
+    token = jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+    return token
+
+
+def create_session(user_email):
+    session["user_email"] = user_email
+
+
+# records = MongoDB('register')
+
+
+@app.route("/adduser", methods=["POST"])
+def adduser():
+    new_record = request.json
+    email = new_record["email"]
+    existing_user = MongoDB('register').find_one({"email": email})
+    if existing_user:
+        response = {"message": "exists"}
+        return jsonify(response)
+
+    salt = bcrypt.gensalt()
+    new_record["password"] = bcrypt.hashpw(new_record["password"].encode("utf-8"), salt)
+    result = MongoDB('register').insert_one(new_record)
+
+    if result.inserted_id:
+        token = generate_token(str(result.inserted_id))
+        response = {"message": "success", "token": token}
+        return jsonify(response)
+    else:
+        response = {"message": "failed"}
+        return jsonify(response)
+
+
+@app.route("/home")
+def home():
+    return "hello"
+
+
+@app.route("/profile", methods=["GET"])
+def profile():
+    user_email = session.get("user_email")
+    response2 = MongoDB('register').find_one({"email": user_email})
+    del response2["_id"]
+    del response2["password"]
+    return jsonify(response2)
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    new_record = request.json
+    user = MongoDB('register').find_one({"email": new_record["email"]})
+    if user:
+        if bcrypt.checkpw(new_record["password"].encode("utf-8"), user["password"]):
+            token = generate_token(str(user["_id"]))
+            response = {"message": "success", "token": token}
+            create_session(str(user["email"]))
+            return jsonify(response)
+        else:
+            response = {"message": "password"}
+            return jsonify(response)
+    else:
+        response = {"message": "username"}
+        return jsonify(response)
+
+
+@app.route("/model1", methods=["POST"])
+def model1():
+    data = request.json
+    titles = data.get("titles")
+    points = data.get("points")
+    doc = data.get("doc")
+    web = data.get("web")
+    # print(titles)
+    # print(points)
+    print("Doc status:",doc)
+    print("Web status:",web)
+    ppt_data = {
+      "titles": titles,
+      "points": points,
+      "doc" : doc,
+      "web" : web
+    }
+    collection = MongoDB('ppt')
+    result=collection.insert_one(ppt_data)
+    session['info_id'] = str(result.inserted_id)
+    response = {"message": True}
+    return jsonify(response)
+
+
+@app.route("/logout", methods=["GET"])
+def logout():
+    session.clear()
+    response = {"message": "success"}
+    return jsonify(response)
+
+@app.route("/suggest-titles", methods=["POST"])
+def suggest_titles():
+    # final_suggestion_list = [
+    #     'Introduction', 'Applications', 'Types of Machine Learning',
+    #     'Supervised Learning', 'Unsupervised Learning', 'Reinforcement Learning',
+    #     'Data Preprocessing', 'Model Evaluation', 'Challenges and Limitations',
+    #     'Future Trends'
+    #     ]
+    
+    domain = request.form.get('domain')
+    topic = request.form.get('topic')
+    web = request.form.get('web')
+    print("Web Status:",web)
+    if 'file' not in request.files:
+       if web=="true":
+        print("Using Web Search")
+        output = generate_slide_titles_from_web(topic)
+        response_list = list(output.values())
+        response = {"message": response_list,"doc":False}
+        return jsonify(response)
+        
+       else: 
+        print("Without Web Search")
+        output = generate_slide_titles(topic)
+        response_list = list(output.values())
+        print(response_list)
+        response = {"message": response_list,"doc":False}
+        return jsonify(response)
+    else:
+        file = request.files['file']
+        print("print file ",file)
+        local_path = 'pdf-file'
+        file.save(os.path.join(local_path, secure_filename(file.filename)))
+        file_path = 'pdf-file/'+ secure_filename(file.filename)
+        # embeddings = OpenAIEmbeddings()
+        vectordb_file_path = ingest(file_path)
+        vector_db= FAISS.load_local(vectordb_file_path, EMBEDDINGS, allow_dangerous_deserialization=True)
+        query1 = topic
+        query2 = "Technology or architecture"
+        session["vectordb_file_path"]=vectordb_file_path
+        docs1 = vector_db.similarity_search(query1)
+        docs2 = vector_db.similarity_search(query2)
+        all_docs = docs1 + docs2
+        context = [doc.page_content for doc in all_docs]
+        output = generate_slide_titles_from_document(topic, context)
+        response_list = list(output.values())
+        response = {"message": response_list,"doc":True}
+        return jsonify(response)
+
+@app.route('/generate-new-info', methods=['POST'])
+def generate_new_info():
+    data = request.get_json()
+    topic = data.get('topic')
+    information = generate_point_info(topic=topic)
+    print(information)
+    keys = list(information.keys())
+    return jsonify({"key": keys, "information": information})
 
 @app.route("/generate-info")
 def generate_info():
