@@ -15,6 +15,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import CSVLoader, PyPDFLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader, PyPDFDirectoryLoader
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from serpapi import GoogleSearch
+from lida import Manager, TextGenerationConfig , llm
+from io import BytesIO
+import base64
+from PIL import Image
 
 
 OPENAI_API_KEY1 = os.getenv("OPENAI_API_KEY1")
@@ -23,9 +27,10 @@ TAVILY_API_KEY1 = os.getenv("TAVILY_API_KEY1")
 TAVILY_API_KEY2 = os.getenv("TAVILY_API_KEY2")
 HF_AUTH_TOKEN = os.getenv('HUGGINGFACE_API_KEY')
 SDXL_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+LIDA = Manager(text_gen = llm("openai"), api_key= OPENAI_API_KEY2)
+TEXTGEN_CONFIG_FOR_LIDA = TextGenerationConfig(n=1, temperature=0.5, model="gpt-3.5-turbo-1106", use_cache=True)
 GOOGLE_SERP_API_KEY = os.getenv('GOOGLE_SERP_API_KEY')
 VECTORDB_FILE_PATH = 'faiss_index'
-
 
 DOCUMENT_MAP = {
     ".txt": TextLoader,
@@ -323,6 +328,38 @@ Use the provided web context to generate point-wise information. Format the outp
     return output
 
 
+def base64_to_image(base64_string):
+    byte_data = base64.b64decode(base64_string)
+    return Image.open(BytesIO(byte_data))
 
+def generate_summary(csv_file_path):
+    summary = LIDA.summarize(csv_file_path, summary_method = 'default', textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
+    return summary
 
+def generate_goals(summary, n_goals, persona):
+    if persona:
+        print('Generating goals with given persona...')
+        goals = LIDA.goals(summary, n= n_goals, persona=persona, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
+    else:
+        print('Generating goals without persona...')
+        goals = LIDA.goals(summary, n= n_goals, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
+    return goals
 
+def generate_visualizations(summary, goal, library='seaborn'):
+    # libraries can be seaborn, matplotlib, ggplot, plotly, bokeh, altair
+    charts = LIDA.visualize(summary=summary, goal= goal, textgen_config= TEXTGEN_CONFIG_FOR_LIDA, library=library)
+    image_base64 = charts[0].raster
+    img = base64_to_image(image_base64)
+    return img, charts
+
+def refine_visualizations(summary, code, instructions, library='seaborn'):
+    edited_charts = LIDA.edit(code=code, summary=summary, instructions=instructions, library=library, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
+    image_base64 = edited_charts[0].raster
+    img = base64_to_image(image_base64)
+    return img ,edited_charts
+
+def generate_recommendations(code, summary, n_recc=1, library='seaborn'):
+    recommended_charts =  LIDA.recommend(code=code, summary=summary, n=n_recc, library = library, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
+    image_base64 = recommended_charts[0].raster
+    img = base64_to_image(image_base64)
+    return img, recommended_charts

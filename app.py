@@ -11,7 +11,7 @@ import openai
 from openai import OpenAI
 import re
 import ast
-from utils import OPENAI_API_KEY1,generate_slide_titles,generate_slide_titles_from_web, generate_point_info, generate_point_info_from_web, fetch_images_from_web, chat_generate_point_info, generate_image, ingest, generate_slide_titles_from_document, generate_point_info_from_document, EMBEDDINGS
+from utils import *
 import torch
 import time
 from langchain_community.vectorstores import FAISS
@@ -262,11 +262,101 @@ tools = [
             }
         }
     },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'generate_goals',
+            'description': 'Generate recommendations for visualization (goals) to the user for exploring the given csv data. Helps to analyze the data. Use this when the user asks for recommendations from a csv file.',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'n_goals': {
+                        'type': 'number',
+                        'description': 'The number of recommended visualizations or goals to generate. Default is 1.'
+                    },
+                    'persona': {
+                        'type': 'string',
+                        'description': 'Persona for who the goals or visualization recommendations are generated. Ex: a mechanic who wants to buy a car that is cheap but has good gas mileage'
+                    }
+                },
+                'required': ['n_goals']
+            }
+        }
+    },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'generate_visualizations',
+            'description': 'Use to generate visualization based on the user query',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'user_query': {
+                        'type': 'string',
+                        'description': 'The query to use to generate the visualization. Example: average price of cars by type, bar graph for gdp per capita and social support for the country Iceland'
+                    },
+                    'library': {
+                        'type': 'string',
+                        'description': 'The python library to use to generate the visualization. Can be one of the following libraries: seaborn, matplotlib, ggplot, plotly, bokeh, altair. Default is seaborn'
+                    }
+                },
+                'required': ['user_query']
+            }
+        }
+    },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'edit_visualizations',
+            'description': 'Use to edit a previously given visualization according to the user\'s instructions',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'instructions': {
+                        'type': 'array',
+                        'description': 'An array of string consisting of user instructions for refining the previous visualization.',
+                        'items':{
+                            'type': 'string',
+                            'description': 'Instruction given by the user. Example: change the color of the chart to red.'
+                        }
+                    },
+                    'library': {
+                        'type': 'string',
+                        'description': 'The python library to use to generate the visualization. Can be one of the following libraries: seaborn, matplotlib, ggplot, plotly, bokeh, altair. Default is seaborn'
+                    }
+                },
+                'required': ['instructions']
+            }
+        }
+    },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'recommend_visualizations',
+            'description': 'Use to recommend visualization based on the previously generated visualization. Use this when the user asks for visualizations which are similar to the previous visualization',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'n_recommendations': {
+                        'type': 'number',
+                        'description': 'The number of recommendations to generate given the previous visualization.'
+                    },
+                    'library': {
+                        'type': 'string',
+                        'description': 'The python library to use to generate the visualization. Can be one of the following libraries: seaborn, matplotlib, ggplot, plotly, bokeh, altair. Default is seaborn'
+                    }
+                },
+                'required': ['n_recommendations']
+            }
+        }
+    },
 ]
 
 available_tools = {
     'generate_information': chat_generate_point_info,
     'generate_image': generate_image,
+    'generate_goals': generate_goals,
+    'generate_visualizations': generate_visualizations
 }
 
 
@@ -438,10 +528,9 @@ def chatbot_route():
         if run.status == 'failed':
             print(run.error)
         elif run.status == 'requires_action':
-            all_output,tool,run = get_tool_result(thread_id, run.id, run.required_action.submit_tool_outputs.tool_calls)
+            all_output, tool, run = get_tool_result(thread_id, run.id, run.required_action.submit_tool_outputs.tool_calls)
             run = wait_on_run(run.id,thread_id)
         messages = client.beta.threads.messages.list(thread_id=thread_id,order="asc")
-        print('message',messages)
         content = None
         for thread_message in messages.data:
             content = thread_message.content
@@ -464,7 +553,7 @@ def chatbot_route():
                 response = {'chatbotResponse': chatbot_reply, "images": all_images,'function_name': 'generate_information','key': keys, 'information': all_output[0]['generate_info_output']} 
                 return jsonify(response)
             elif "generate_image" in tool:
-                print('generate_image')
+                print('Generating Image')
                 image_path = all_output[0]['generate_image_output']
                 chatbot_reply = "Yes sure! Your image has been added on your current Slide!"
                 image_url = f"/send_image/{image_path}"
