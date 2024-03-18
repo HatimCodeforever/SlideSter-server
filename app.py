@@ -192,7 +192,7 @@ available_tools = {
     'generate_image': generate_image,
     'generate_goals': generate_goals,
     'generate_visualizations': generate_visualizations,
-    'edit_visualizations': refine_visualizations,
+    'edit_visualizations': edit_visualizations,
     'recommend_visualizations': recommend_visualizations
 }
     
@@ -517,13 +517,47 @@ def get_tool_result(thread_id, run_id, tools_to_call):
         elif tool_name == 'generate_visualizations':
             summary = session['summary']
             goals = json.loads(tool_args)['user_query']
-            visualization_image,visualization_chart = generate_visualizations(summary,goals)
+            library= 'seaborn'
+            if 'library' in json.loads(tool_args):
+                library = json.loads(tool_args)['library']
+            visualization_image,visualization_chart = generate_visualizations(summary, goals, library)
             image_path = "assistant_charts/chart1.png"
-            session['chart'] = visualization_chart[0].code
+            session['charts_code'] = visualization_chart[0].code
             visualization_image.save(image_path)
             output = "Chart has been generated"
             assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
             tools_outputs.append({'generate_visualizations_output': image_path })
+        elif tool_name == 'edit_visualizations':
+            summary = session['summary']
+            code = session['charts_code']
+            instructions = json.loads(tool_args)['instructions']
+            library= 'seaborn'
+            if 'library' in json.loads(tool_args):
+                library = json.loads(tool_args)['library']
+            edited_image,edited_chart = edit_visualizations(summary, code, instructions, library)
+            image_path = "assistant_charts/chart1.png"
+            session['charts_code'] = edited_chart[0].code
+            edited_image.save(image_path)
+            output = "Chart has been edited"
+            assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
+            tools_outputs.append({'edit_visualizations_output': image_path })
+        elif tool_name == 'recommend_visualizations':
+            summary = session['summary']
+            code = session['charts_code']
+            library= 'seaborn'
+            n_recommendations = 1
+            if 'n_recommendations' in json.loads(tool_args):
+                n_recommendations = json.loads(tool_args)['n_recommendations']
+            if 'library' in json.loads(tool_args):
+                library = json.loads(tool_args)['library']
+            recommended_image, recommended_chart = recommend_visualizations(summary, code, n_recc=n_recommendations, library=library)
+            image_path = "assistant_charts/chart1.png"
+            session['charts_code'] = recommended_chart[0].code
+            recommended_image.save(image_path)
+            output = "Chart has been edited"
+            assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
+            tools_outputs.append({'recommend_visualizations_output': image_path })
+
         run=client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run_id, tool_outputs=assistant_outputs)
     return tools_outputs,all_tool_name,run
         
@@ -597,7 +631,23 @@ def chatbot_route():
             elif "generate_visualizations" in tool:
                 print('Generating Charts')
                 image_path = all_output[0]['generate_visualizations_output']
-                chatbot_reply = "Yes sure! Your chart has been added on your current Slide!"
+                chatbot_reply = content[0].text.value
+                image_url = f"/send_image/{image_path}"
+                # Create a response object to include both image and JSON data
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                return jsonify(response)
+            elif "edit_visualizations" in tool:
+                print('Editing Charts')
+                image_path = all_output[0]['edit_visualizations_output']
+                chatbot_reply = content[0].text.value
+                image_url = f"/send_image/{image_path}"
+                # Create a response object to include both image and JSON data
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                return jsonify(response)
+            elif "recommend_visualizations" in tool:
+                print('Recommending Charts')
+                image_path = all_output[0]['recommend_visualizations_output']
+                chatbot_reply = content[0].text.value
                 image_url = f"/send_image/{image_path}"
                 # Create a response object to include both image and JSON data
                 response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}

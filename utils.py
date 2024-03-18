@@ -354,13 +354,13 @@ def generate_visualizations(summary, goal, library='seaborn'):
     img = base64_to_image(image_base64)
     return img, charts
 
-def refine_visualizations(summary, code, instructions, library='seaborn'):
+def edit_visualizations(summary, code, instructions, library='seaborn'):
     edited_charts = LIDA.edit(code=code, summary=summary, instructions=instructions, library=library, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
     image_base64 = edited_charts[0].raster
     img = base64_to_image(image_base64)
     return img ,edited_charts
 
-def recommend_visualizations(code, summary, n_recc=1, library='seaborn'):
+def recommend_visualizations(summary, code, n_recc=1, library='seaborn'):
     recommended_charts =  LIDA.recommend(code=code, summary=summary, n=n_recc, library = library, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
     image_base64 = recommended_charts[0].raster
     img = base64_to_image(image_base64)
