@@ -615,7 +615,7 @@ def chatbot_route():
             elif "generate_image" in tool:
                 print('Generating Image')
                 image_path = all_output[0]['generate_image_output']
-                chatbot_reply = "Yes sure! Your image has been added on your current Slide!"
+                chatbot_reply = content[0].text.value
                 image_url = f"/send_image/{image_path}"
                 # Create a response object to include both image and JSON data
                 response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
@@ -673,7 +673,7 @@ def upload_file():
         summary =  generate_summary(file_path)
         session['summary'] = summary
         print("Summary", summary)
-        chatbot_reply = ".CSV file has been successfully uplaoded."
+        chatbot_reply = "Your csv file has been successfully uplaoded. You can now use it to generate engaging and stunning visualizations of your data!"
         return jsonify({'message': 'File uploaded successfully','chatbotResponse': chatbot_reply ,'filename': filename}), 200
     else:
         return jsonify({'error': 'Upload failed'}), 500
