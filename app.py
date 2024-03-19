@@ -19,6 +19,8 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from concurrent.futures import ThreadPoolExecutor
 from werkzeug.utils import secure_filename
 from tavily import TavilyClient
+from zipfile import ZipFile
+import shutil
 
 
 load_dotenv()
@@ -550,13 +552,18 @@ def get_tool_result(thread_id, run_id, tools_to_call):
                 n_recommendations = json.loads(tool_args)['n_recommendations']
             if 'library' in json.loads(tool_args):
                 library = json.loads(tool_args)['library']
-            recommended_image, recommended_chart = recommend_visualizations(summary, code, n_recc=n_recommendations, library=library)
-            image_path = "assistant_charts/chart1.png"
+            recommended_images, recommended_chart = recommend_visualizations(summary, code, n_recc=n_recommendations, library=library)
+            i = 1
+            image_path_list = []
+            for image in recommended_images:
+                image_path = "assistant_charts/recommend/chart"+ str(i) +".png"
+                image.save(image_path)
+                image_path_list.append(image_path)
+                i += 1
             session['charts_code'] = recommended_chart[0].code
-            recommended_image.save(image_path)
-            output = "Chart has been edited"
+            output = "Recommended Charts has been generated"
             assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
-            tools_outputs.append({'recommend_visualizations_output': image_path })
+            tools_outputs.append({'recommend_visualizations_output': image_path_list })
 
         run=client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run_id, tool_outputs=assistant_outputs)
     return tools_outputs,all_tool_name,run
@@ -616,9 +623,8 @@ def chatbot_route():
                 print('Generating Image')
                 image_path = all_output[0]['generate_image_output']
                 chatbot_reply = "Yes sure! Your image has been added on your current Slide!"
-                image_url = f"/send_image/{image_path}"
                 # Create a response object to include both image and JSON data
-                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_path}
                 return jsonify(response)
             elif "generate_goals" in tool:
                 print('Generating Goals')
@@ -632,35 +638,55 @@ def chatbot_route():
                 print('Generating Charts')
                 image_path = all_output[0]['generate_visualizations_output']
                 chatbot_reply = content[0].text.value
-                image_url = f"/send_image/{image_path}"
                 # Create a response object to include both image and JSON data
-                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_path}
                 return jsonify(response)
             elif "edit_visualizations" in tool:
                 print('Editing Charts')
                 image_path = all_output[0]['edit_visualizations_output']
                 chatbot_reply = content[0].text.value
-                image_url = f"/send_image/{image_path}"
                 # Create a response object to include both image and JSON data
-                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_path}
                 return jsonify(response)
             elif "recommend_visualizations" in tool:
                 print('Recommending Charts')
-                image_path = all_output[0]['recommend_visualizations_output']
+                image_path_list = all_output[0]['recommend_visualizations_output']
                 chatbot_reply = content[0].text.value
-                image_url = f"/send_image/{image_path}"
                 # Create a response object to include both image and JSON data
-                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_url}
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_recommendations','image_url': image_path_list}
                 return jsonify(response)
             else:
                 return jsonify({'error': 'User message not provided'}), 400
 
-@app.route('/send_image/<image_path>', methods=['GET'])
-def send_image(image_path):
+@app.route('/send_image', methods=['POST'])
+def send_image():
+    data = request.json
+    image_path = data.get('image_path')
     return send_file(image_path, mimetype='image/png')
 
+@app.route('/send_images', methods=['POST'])
+def send_images():
+    data = request.json
+    image_paths = data.get('image_path')
+    temp_dir = 'temp_images'
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Copy images to the temporary directory
+    for i, image_path in enumerate(image_paths):
+        image_filename = f'image_{i}.png'  # Use a unique filename for each image
+        image_destination = os.path.join(temp_dir, image_filename)
+        shutil.copy(image_path, image_destination)
+
+    # Create a zip file containing all the images
+    zip_filename = 'images.zip'
+    with ZipFile(zip_filename, 'w') as zip_file:
+        for root, dirs, files in os.walk(temp_dir):
+            for file in files:
+                zip_file.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), temp_dir))
+    return send_file(zip_filename, as_attachment=True)
+
 @app.route('/upload-csv', methods=['POST'])
-def upload_file():
+def upload_csv():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
