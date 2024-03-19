@@ -362,6 +362,10 @@ def edit_visualizations(summary, code, instructions, library='seaborn'):
 
 def recommend_visualizations(summary, code, n_recc=1, library='seaborn'):
     recommended_charts =  LIDA.recommend(code=code, summary=summary, n=n_recc, library = library, textgen_config= TEXTGEN_CONFIG_FOR_LIDA)
-    image_base64 = recommended_charts[0].raster
-    img = base64_to_image(image_base64)
-    return img, recommended_charts
+    all_images= []
+    for chart in recommended_charts:
+        print("single chart:-------------------",chart)
+        image_base64 = chart.raster
+        image = base64_to_image(image_base64)
+        all_images.append(image)
+    return all_images, recommended_charts
