@@ -377,10 +377,10 @@ def generate_info():
     num_points_split_one = num_points[:int(len(num_points)/2)]
     num_points_split_two = num_points[int(len(num_points)/2):]
 
-    print("doc status",doc_mongo)
+    # print("doc status",doc_mongo)
     doc = doc_mongo.get('doc')
     web = doc_mongo.get('web')
-    print('doc--------------------------------',doc_mongo)
+    print('Doc status:',doc_mongo)
     client = OpenAI(api_key=OPENAI_API_KEY1)
     assistant = client.beta.assistants.create(
         name="SLIDESTER",
@@ -391,7 +391,7 @@ def generate_info():
     thread = client.beta.threads.create()
     session['assistant_id'] = assistant.id
     session['thread_id'] = thread.id
-    print('ASSITANT INITIALISED: ',assistant)
+    print('ASSITANT INITIALISED WITH ID: ',assistant.id)
 
     if not doc:
         if web:
@@ -622,7 +622,8 @@ def chatbot_route():
             elif "generate_image" in tool:
                 print('Generating Image')
                 image_path = all_output[0]['generate_image_output']
-                chatbot_reply = content[0].text.value
+                chatbot_reply = "Sure! I have generated your image and added it on your current slide. Let me know if there is anything else I can help you with!"
+                # chatbot_reply = content[0].text.value
                 image_url = f"/send_image/{image_path}"
                 # Create a response object to include both image and JSON data
                 response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_image','image_url': image_path}
@@ -631,7 +632,12 @@ def chatbot_route():
                 print('Generating Goals')
                 goals = all_output[0]['generate_goal_output']
                 print("Goal",goals)
-                chatbot_reply =  ",".join([goal.visualization for goal in goals])
+                formatted_goals = []
+                for goal in goals:
+                    formatted_goal = f"Question: {goal.question}\nVisualization: {goal.visualization}\nExplanation: {goal.rationale}\n"
+                    formatted_goals.append(formatted_goal)
+                chatbot_reply = "\n".join(formatted_goals)
+                # chatbot_reply =  ",".join([goal.visualization for goal in goals])
                 # Create a response object to include both image and JSON data
                 response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_goals'}
                 return jsonify(response)
@@ -700,7 +706,7 @@ def upload_csv():
         summary =  generate_summary(file_path)
         session['summary'] = summary
         print("Summary", summary)
-        chatbot_reply = "Your csv file has been successfully uplaoded. You can now use it to generate engaging and stunning visualizations of your data!"
+        chatbot_reply = "Your csv file has been successfully uploaded. You can now use it to generate engaging and stunning visualizations of your data!"
         return jsonify({'message': 'File uploaded successfully','chatbotResponse': chatbot_reply ,'filename': filename}), 200
     else:
         return jsonify({'error': 'Upload failed'}), 500

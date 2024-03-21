@@ -114,7 +114,6 @@ def generate_point_info(topic, n_points, api_key_to_use):
     )
 
     output = ast.literal_eval(completion.choices[0].message.content)
-
     return output
 
 def chat_generate_point_info(topic, n_points=5, api_key_to_use='first'):
@@ -152,7 +151,7 @@ def fetch_images_from_web(topic):
     search = GoogleSearch(params)
     results = search.get_dict()
     print("Images result", results['images_results'])
-    image_results = results["images_results"]
+    image_results = results['images_results']
     image_links = [i['original'] for i in image_results[:10]]
     return image_links
 
