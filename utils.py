@@ -19,6 +19,14 @@ from lida import Manager, TextGenerationConfig , llm
 from io import BytesIO
 import base64
 from PIL import Image
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Image
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.units import mm
 
 
 OPENAI_API_KEY1 = os.getenv("OPENAI_API_KEY1")
@@ -88,14 +96,15 @@ Topic = {topic}
     output = ast.literal_eval(completion.choices[0].message.content)
     return output
 
-def generate_point_info(topic, n_points, api_key_to_use):
+def generate_point_info(main_topic, topic, n_points, api_key_to_use):
     flag = 1 if api_key_to_use== 'first' else 2
     print(f'THREAD {flag} RUNNING...')
     openai_api_key = OPENAI_API_KEY1 if flag == 1 else OPENAI_API_KEY2
     client = OpenAI(api_key=openai_api_key)
-    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. Your task is to generate point-wise information on it for a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations.
+    info_gen_prompt = """You will be given a main topic. You will also be provided with a list of sub-topics and a corresponding list of number of points. Your task is to generate point-wise information on it for a powerpoint presentation. The points should be precise and plain sentences as that used in powerpoint presentations.
 
-    Topics: {topics_list}
+    Main Topic: {main_topic}
+    Sub-Topics: {topics_list}
     Number of Points: {n_points_list}
 
     Generate information on these topics corresponding to the number of points in the list. Format the output as a JSON dictionary, where the keys are the topic name and the corresponding values are a list of points on that topic.
@@ -106,7 +115,7 @@ def generate_point_info(topic, n_points, api_key_to_use):
         messages=[
             {
                 'role':'user',
-                'content': info_gen_prompt.format(topics_list=topic, n_points_list=n_points)
+                'content': info_gen_prompt.format(main_topic= main_topic, topics_list=topic, n_points_list=n_points)
             }
         ],
         response_format = {'type':'json_object'},
@@ -150,7 +159,6 @@ def fetch_images_from_web(topic):
     }
     search = GoogleSearch(params)
     results = search.get_dict()
-    print("Images result", results['images_results'])
     image_results = results['images_results']
     image_links = [i['original'] for i in image_results[:10]]
     return image_links
@@ -228,16 +236,17 @@ def generate_slide_titles_from_document(topic, context):
 
     return output
 
-def generate_point_info_from_document(topic, n_points, context, api_key_to_use):
+def generate_point_info_from_document(main_topic, topic, n_points, context, api_key_to_use):
     flag = 1 if api_key_to_use== 'first' else 2
     print(f'THREAD {flag} RUNNING...')
     openai_api_key = OPENAI_API_KEY1 if flag == 1 else OPENAI_API_KEY2
     client = OpenAI(api_key=openai_api_key)
-    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. You will also be provided with context from a document. Your task is to generate point-wise information on it for a powerpoint presentation using the provided context. The points should be precise and plain sentences as that used in powerpoint presentations. The number of points in each topic should be equal to the corresponding number of points in the list.
+    info_gen_prompt = """You will be given a main topic. Additionally, youw will be given a list of sub-topics and a corresponding list of number of points. You will also be provided with context from a document. Your task is to generate point-wise information on it for a powerpoint presentation using the provided context. The points should be precise and plain sentences as that used in powerpoint presentations. The number of points in each topic should be equal to the corresponding number of points in the list.
 
 context : ```
 {context}
 ```
+Main topic : {main_topic}
 Topics List : {topics_list}
 number of points : {n_points}
 
@@ -248,7 +257,7 @@ Use the provided context to generate point-wise information. Format the output a
         messages=[
             {
                 'role':'user',
-                'content': info_gen_prompt.format(topics_list=topic, n_points=n_points, context= context)
+                'content': info_gen_prompt.format(main_topic= main_topic, topics_list=topic, n_points=n_points, context= context)
             }
         ],
         response_format = {'type':'json_object'},
@@ -292,7 +301,7 @@ def generate_slide_titles_from_web(topic):
 
     return output
 
-def generate_point_info_from_web(topic, n_points, api_key_to_use):
+def generate_point_info_from_web(main_topic, topic, n_points, api_key_to_use):
     flag = 1 if api_key_to_use== 'first' else 2
     print(f'THREAD {flag} RUNNING...')
     openai_api_key = OPENAI_API_KEY1 if flag == 1 else OPENAI_API_KEY2
@@ -300,13 +309,14 @@ def generate_point_info_from_web(topic, n_points, api_key_to_use):
     client = OpenAI(api_key = openai_api_key)
     tavily_client = TavilyClient(api_key = tavily_api_key)
     topic_str = ", ".join(topic)
-    search_result = tavily_client.get_search_context(topic_str, search_depth="advanced", max_tokens=6000)
+    search_result = tavily_client.get_search_context(main_topic+':'+topic_str, search_depth="advanced", max_tokens=6000)
     
-    info_gen_prompt = """You will be given a list of topics and a corresponding list of number of points. You will also be provided with context from internet. Your task is to generate point-wise information on it for a powerpoint presentation using the provided context from the internet. The points should be precise and plain sentences as that used in powerpoint presentations. The number of points in each topic should be equal to the corresponding number of points in the list.
+    info_gen_prompt = """You will be given a main topic as well as a list of topics and a corresponding list of number of points. You will also be provided with context from internet. Your task is to generate point-wise information on it for a powerpoint presentation using the provided context from the internet. The points should be precise and plain sentences as that used in powerpoint presentations. The number of points in each topic should be equal to the corresponding number of points in the list.
 
 Context from Internet: ```
 {search_result}
 ```
+Main Topic: {main_topic}
 Topics List : {topics_list}
 number of points : {n_points}
 
@@ -317,7 +327,7 @@ Use the provided web context to generate point-wise information. Format the outp
         messages=[
             {
                 'role':'user',
-                'content': info_gen_prompt.format(topics_list=topic, n_points=n_points, search_result= search_result)
+                'content': info_gen_prompt.format(main_topic=main_topic, topics_list=topic, n_points=n_points, search_result= search_result)
             }
         ],
         response_format = {'type':'json_object'},
@@ -368,3 +378,144 @@ def recommend_visualizations(summary, code, n_recc=1, library='seaborn'):
         image = base64_to_image(image_base64)
         all_images.append(image)
     return all_images, recommended_charts
+
+def generate_question_bank(context, n_questions=10):
+    client = OpenAI(api_key=OPENAI_API_KEY1)
+    info_gen_prompt = """
+    Your task is to create a question bank based on the context provided from a PowerPoint presentation. Generate a total of {n_questions} questions using only the provided context. Only use the provided context to generate the questions. Each question should have its answer directly present in the context itself.
+
+    CONTEXT:
+    ```{context}```
+
+    Ensure that the output is in valid JSON format, with keys representing the question numbers and values containing the questions generated by you.
+    """
+    completion = client.chat.completions.create(
+        model = 'gpt-3.5-turbo-1106',
+        messages=[
+            {
+                'role':'user',
+                'content': info_gen_prompt.format(n_questions= n_questions, context=context)
+            }
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
+    )
+
+    output = ast.literal_eval(completion.choices[0].message.content)
+    
+    return output
+
+def generate_notes(context):
+    client = OpenAI(api_key=OPENAI_API_KEY1)
+    info_gen_prompt = """
+    You have been provided with content extracted from a PowerPoint presentation. Your task is to generate comprehensive notes for the faculty member who will be delivering the presentation. Ensure that the notes are well-structured and easily understandable for the faculty's reference during and after the presentation.
+
+    Your notes should include:
+
+    1. Brief Explanations: Provide concise explanations for all important topics discussed in the slides.
+    2. Jargon Definitions: Define any specialized terminology or jargon used in the presentation. Organize these definitions as a dictionary, where the jargon terms are the keys and its meaning are the values.
+    3. Core Concept Explanations: Explain difficult or core concepts in a manner that is accessible to the faculty member. Clearly identify each section or topic covered in the presentation and provide in depth explanation of each. Organize these as a dictionary, where the keys are the sections and the values are the in-depth explanation of that section. The explanation should be detailed and more than 100 words for all the concepts.
+    4. Examples: Include relevant examples to illustrate key points and aid in understanding.
+
+    CONTEXT:
+    ```{context}```
+
+    Ensure that the output is in valid JSON format, with keys corresponding to "brief_explanation" (a dictionary of explanations),"jargons_meaning" (a list of dictionaries), "concepts_explanation" (a dictionary of explanations), and "examples" (a dictionary of examples).
+    """
+    completion = client.chat.completions.create(
+        model = 'gpt-3.5-turbo-1106',
+        messages=[
+            {
+                'role':'user',
+                'content': info_gen_prompt.format(context=context)
+            }
+        ],
+        response_format = {'type':'json_object'},
+        seed = 42,
+    )
+
+    output = ast.literal_eval(completion.choices[0].message.content)
+    return output
+
+def generate_question_bank_pdf(pdf_file_path, main_topic , question_bank):
+    # Register Unicode fonts
+    pdfmetrics.registerFont(TTFont('DejaVuSansCondensed', 'Fonts/DejaVuSansCondensed.ttf'))
+
+    # Create a PDF document
+    pdf = SimpleDocTemplate(pdf_file_path, pagesize=letter)
+
+    # Define styles for different headings and content
+    styles = {
+        'Heading1': ParagraphStyle(name='Heading1', fontName='DejaVuSansCondensed', fontSize=16, spaceAfter=16, spaceBefore=16, bold=True),
+        'Heading2': ParagraphStyle(name='Heading2', fontName='DejaVuSansCondensed', fontSize=14, spaceAfter=14, spaceBefore=14),
+        'Heading3': ParagraphStyle(name='Heading3', fontName='DejaVuSansCondensed', fontSize=12, spaceAfter=12, spaceBefore=12),
+        'Normal': ParagraphStyle(name='Normal', fontName='DejaVuSansCondensed', fontSize=8, spaceAfter=8, spaceBefore=8),
+        'URL': ParagraphStyle(name='URL', textColor=colors.blue, underline=True, spaceAfter=8),
+    }
+
+    # Build the PDF document
+    content = [
+        Image('logo/apple-icon.png', width=440, height=237),
+        Paragraph("Disclaimer: This content is generated by AI.", styles['Heading3']),
+        Paragraph(main_topic, styles['Heading1']),
+        Paragraph("Question Bank", styles['Heading2']),
+    ]
+
+    for key,value in question_bank.items():
+        content.append(Paragraph(key, styles['Heading2']))
+        content.append(Paragraph(value, styles['Heading3']))
+
+    pdf.build(content, onFirstPage=add_page_number, onLaterPages=add_page_number)
+
+def generate_notes_pdf(pdf_file_path, main_topic , notes):
+    # Register Unicode fonts
+    pdfmetrics.registerFont(TTFont('DejaVuSansCondensed', 'Fonts/DejaVuSansCondensed.ttf'))
+
+    # Create a PDF document
+    pdf = SimpleDocTemplate(pdf_file_path, pagesize=letter)
+
+    # Define styles for different headings and content
+    styles = {
+        'Heading1': ParagraphStyle(name='Heading1', fontName='DejaVuSansCondensed', fontSize=16, spaceAfter=16, spaceBefore=16, bold=True),
+        'Heading2': ParagraphStyle(name='Heading2', fontName='DejaVuSansCondensed', fontSize=14, spaceAfter=14, spaceBefore=14),
+        'Heading3': ParagraphStyle(name='Heading3', fontName='DejaVuSansCondensed', fontSize=12, spaceAfter=12, spaceBefore=12),
+        'Normal': ParagraphStyle(name='Normal', fontName='DejaVuSansCondensed', fontSize=8, spaceAfter=8, spaceBefore=8),
+        'URL': ParagraphStyle(name='URL', textColor=colors.blue, underline=True, spaceAfter=8),
+    }
+
+    # Build the PDF document
+    content = [
+        Image('logo/apple-icon.png', width=440, height=237),
+        Paragraph("Disclaimer: This content is generated by AI.", styles['Heading3']),
+        Paragraph(main_topic, styles['Heading1']),
+        Paragraph("Module Summary:", styles['Heading2']),
+    ]
+
+    for key,value in notes['brief_explanation'].items():
+        content.append(Paragraph(key, styles['Heading2']))
+        content.append(Paragraph(value, styles['Heading3']))
+    
+    content.append(Paragraph("Jargons in the Presentation:- ", styles['Heading2']))
+
+    for key,value in notes['jargons_meaning'].items():
+        content.append(Paragraph(key, styles['Heading2']))
+        content.append(Paragraph(value, styles['Heading3']))
+    
+    content.append(Paragraph("Concept Overview:- ", styles['Heading2']))
+
+    for key,value in notes['concepts_explanation'].items():
+        content.append(Paragraph(key, styles['Heading2']))
+        content.append(Paragraph(value, styles['Heading3']))
+
+    content.append(Paragraph("Examples:- ", styles['Heading2']))
+
+    for i in notes['examples']:
+        content.append(Paragraph(i, styles['Heading3']))
+
+    pdf.build(content, onFirstPage=add_page_number, onLaterPages=add_page_number)
+
+def add_page_number(canvas, docs):
+    # Add page numbers
+    page_num = canvas.getPageNumber()
+    text = "Page %d" % page_num
+    canvas.drawRightString(200*mm, 20*mm, text)
