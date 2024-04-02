@@ -23,6 +23,7 @@ from zipfile import ZipFile
 import shutil
 
 
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -187,6 +188,30 @@ tools = [
             }
         }
     },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'generate_question_bank',
+            'description': 'Use to create a question bank on te given presentation',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'n_questions': {
+                        'type': 'string',
+                        'description': 'The number of questions in the question bank. Default is 10.'
+                    },
+                },
+                'required': ['n_questions']
+            }
+        }
+    },
+    {
+        'type': 'function',
+        'function':{
+            'name': 'generate_notes',
+            'description': 'Use to create reference notes from presentation',
+        }
+    },
 ]
 
 available_tools = {
@@ -195,7 +220,9 @@ available_tools = {
     'generate_goals': generate_goals,
     'generate_visualizations': generate_visualizations,
     'edit_visualizations': edit_visualizations,
-    'recommend_visualizations': recommend_visualizations
+    'recommend_visualizations': recommend_visualizations,
+    'generate_notes': generate_notes,
+    'generate_question_bank': generate_question_bank,
 }
     
 
@@ -358,7 +385,8 @@ def suggest_titles():
 def generate_new_info():
     data = request.get_json()
     topic = data.get('topic')
-    information = generate_point_info(topic=topic)
+    main_topic = session['topic']
+    information = generate_point_info(main_topic, topic=topic)
     print(information)
     keys = list(information.keys())
     return jsonify({"key": keys, "information": information})
@@ -397,8 +425,8 @@ def generate_info():
         if web:
             with ThreadPoolExecutor() as executor:
                 print("Generating Content from web...")
-                future_content_one = executor.submit(generate_point_info_from_web, topics_split_one, num_points_split_one, 'first')
-                future_content_two = executor.submit(generate_point_info_from_web, topics_split_two, num_points_split_two, 'second')
+                future_content_one = executor.submit(generate_point_info_from_web, main_topic,topics_split_one, num_points_split_one, 'first')
+                future_content_two = executor.submit(generate_point_info_from_web, main_topic,topics_split_two, num_points_split_two, 'second')
                 content_one = future_content_one.result()
                 content_two = future_content_two.result()
                 information = {}
@@ -417,8 +445,8 @@ def generate_info():
                 # 'Introduction to Computer Vision': ['Computer vision is a field of study that focuses on enabling computers to see, recognize, and understand visual information.', 'It involves the use of various techniques such as image processing, pattern recognition, and machine learning algorithms.', 'Computer vision finds application in various domains including autonomous vehicles, robotics, healthcare, and surveillance systems.', 'Common tasks in computer vision include image classification, object detection, image segmentation, and image enhancement.', 'Python libraries like OpenCV and TensorFlow provide powerful tools and frameworks for implementing computer vision algorithms and applications.'],
                 # 'The History of Computer Vision': ['The concept of computer vision dates back to the 1960s when researchers began exploring ways to enable computers to interpret visual information.', 'The development of computer vision was greatly influenced by advances in artificial intelligence and the availability of faster and more powerful hardware.', 'In the 1980s, computer vision techniques like edge detection and feature extraction gained popularity, leading to applications in fields like robotics and image recognition.', 'The 1990s saw significant progress in computer vision with the introduction of algorithms for object recognition, image segmentation, and motion detection.', 'In recent years, deep learning techniques, particularly convolutional neural networks(CNNs), have revolutionized computer vision by achieving state- of - the - art performance across a wide range of tasks.'],
                 # }
-                future_content_one = executor.submit(generate_point_info, topics_split_one, num_points_split_one, 'first')
-                future_content_two = executor.submit(generate_point_info, topics_split_two, num_points_split_two, 'second')
+                future_content_one = executor.submit(generate_point_info, main_topic, topics_split_one, num_points_split_one, 'first')
+                future_content_two = executor.submit(generate_point_info, main_topic, topics_split_two, num_points_split_two, 'second')
                 content_one = future_content_one.result()
                 content_two = future_content_two.result()
                 information = {}
@@ -443,8 +471,8 @@ def generate_info():
             rel_docs_two = vector_db.similarity_search(topics_split_two_text, k=10)
             context_one = [doc.page_content for doc in rel_docs_one]
             context_two = [doc.page_content for doc in rel_docs_two]
-            future_content_one = executor.submit(generate_point_info_from_document, topics_split_one, num_points_split_one, context_one, 'first')
-            future_content_two = executor.submit(generate_point_info_from_document, topics_split_two, num_points_split_two, context_two, 'second')
+            future_content_one = executor.submit(generate_point_info_from_document, main_topic, topics_split_one, num_points_split_one, context_one, 'first')
+            future_content_two = executor.submit(generate_point_info_from_document, main_topic, topics_split_two, num_points_split_two, context_two, 'second')
             content_one = future_content_one.result()
             content_two = future_content_two.result()
             information = {}
@@ -472,7 +500,7 @@ def wait_on_run(run_id, thread_id):
             return run
 
 client = OpenAI(api_key = OPENAI_API_KEY1)
-def get_tool_result(thread_id, run_id, tools_to_call):
+def get_tool_result(thread_id, run_id, tools_to_call, context):
     tools_outputs = []
     assistant_outputs = []
     all_tool_name = []
@@ -499,7 +527,7 @@ def get_tool_result(thread_id, run_id, tools_to_call):
         elif tool_name == 'generate_image':
             prompt = json.loads(tool_args)['prompt']
             print('Generating image...')
-            image_path = generate_image(prompt)
+            image_path = tool_to_call(prompt)
             print('Image generated and saved at path:',image_path)
             output = "Image has been Generated please accept it"
             assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
@@ -512,7 +540,7 @@ def get_tool_result(thread_id, run_id, tools_to_call):
             persona = None
             if 'persona' in json.loads(tool_args):
                 persona = json.loads(tool_args)['persona']
-            goals = generate_goals(summary,n_goals,persona)
+            goals = tool_to_call(summary,n_goals,persona)
             output = "Goals has been Generated please accept it"
             assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
             tools_outputs.append({'generate_goal_output': goals })
@@ -522,7 +550,7 @@ def get_tool_result(thread_id, run_id, tools_to_call):
             library= 'seaborn'
             if 'library' in json.loads(tool_args):
                 library = json.loads(tool_args)['library']
-            visualization_image,visualization_chart = generate_visualizations(summary, goals, library)
+            visualization_image,visualization_chart = tool_to_call(summary, goals, library)
             image_path = "assistant_charts/chart1.png"
             session['charts_code'] = visualization_chart[0].code
             visualization_image.save(image_path)
@@ -536,7 +564,7 @@ def get_tool_result(thread_id, run_id, tools_to_call):
             library= 'seaborn'
             if 'library' in json.loads(tool_args):
                 library = json.loads(tool_args)['library']
-            edited_image,edited_chart = edit_visualizations(summary, code, instructions, library)
+            edited_image,edited_chart = tool_to_call(summary, code, instructions, library)
             image_path = "assistant_charts/chart1.png"
             session['charts_code'] = edited_chart[0].code
             edited_image.save(image_path)
@@ -552,7 +580,7 @@ def get_tool_result(thread_id, run_id, tools_to_call):
                 n_recommendations = json.loads(tool_args)['n_recommendations']
             if 'library' in json.loads(tool_args):
                 library = json.loads(tool_args)['library']
-            recommended_images, recommended_chart = recommend_visualizations(summary, code, n_recc=n_recommendations, library=library)
+            recommended_images, recommended_chart = tool_to_call(summary, code, n_recc=n_recommendations, library=library)
             i = 1
             image_path_list = []
             for image in recommended_images:
@@ -564,7 +592,17 @@ def get_tool_result(thread_id, run_id, tools_to_call):
             output = "Recommended Charts has been generated"
             assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
             tools_outputs.append({'recommend_visualizations_output': image_path_list })
-
+        elif tool_name=='generate_question_bank':
+            n_questions = json.loads(tool_args)['n_questions']
+            question_bank = tool_to_call(n_questions, context)
+            output = "Question bank has been generated"
+            tools_outputs.append({'generate_question_bank_output': question_bank })
+            assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
+        elif tool_name=='generate_notes':
+            presentation_notes = tool_to_call(context)
+            output = "Presentation Notes has been generated"
+            tools_outputs.append({'generate_notes_output': presentation_notes })
+            assistant_outputs.append({'tool_call_id': tool_call_id, 'output': output})
         run=client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run_id, tool_outputs=assistant_outputs)
     return tools_outputs,all_tool_name,run
         
@@ -574,6 +612,19 @@ def chatbot_route():
     print(data)
     tool = None
     query = data.get('userdata', '')
+    headings = data.get('headings', '')
+    bodies = data.get('bodies', '')
+    main_topic = session['topic']
+    result_string = ""
+
+    # Iterate through the headings list starting from the second element (index 1) to the second-to-last element (index -1)
+    for heading in headings[1:-1]:
+        if heading in bodies:
+            # Retrieve the corresponding list from the bodies dictionary
+            body_list = bodies[heading]
+            # Convert the list to a string and append the heading and its corresponding list values to the result string
+            result_string += f"{heading}: {' '.join(map(str, body_list))}\n"
+    print("my context",result_string)
     if query:         
         client = OpenAI(api_key=OPENAI_API_KEY1)
         assistant_id = session['assistant_id']
@@ -595,14 +646,12 @@ def chatbot_route():
         if run.status == 'failed':
             print(run.error)
         elif run.status == 'requires_action':
-            all_output, tool, run = get_tool_result(thread_id, run.id, run.required_action.submit_tool_outputs.tool_calls)
+            all_output, tool, run = get_tool_result(thread_id, run.id, run.required_action.submit_tool_outputs.tool_calls,context=result_string)
             run = wait_on_run(run.id,thread_id)
         messages = client.beta.threads.messages.list(thread_id=thread_id,order="asc")
         content = None
         for thread_message in messages.data:
             content = thread_message.content
-        print("Content List", content)
-        print('tool------------------',tool)
         if tool==None:
             chatbot_reply = content[0].text.value
             print("Chatbot reply-------------",chatbot_reply)
@@ -612,7 +661,7 @@ def chatbot_route():
             if "generate_information" in tool:
                 print('Generating information')
                 print(all_output[0]['generate_info_output'])
-                chatbot_reply = "Yes sure! Your information has been added on your current Slide!"
+                chatbot_reply = "Yes sure! Your information has been added on your Current Slide!"
                 keys = list(all_output[0]['generate_info_output'])
                 all_images= {}
                 images = fetch_images_from_web(keys[0])
@@ -661,6 +710,30 @@ def chatbot_route():
                 chatbot_reply = content[0].text.value
                 # Create a response object to include both image and JSON data
                 response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_recommendations','image_url': image_path_list}
+                return jsonify(response)
+            elif "generate_question_bank" in tool:
+                print('Generating Question Bank...')
+                question_bank = all_output[0]['generate_question_bank_output']
+                print("Question Bank:---------------------",question_bank)
+                download_dir = os.path.join(os.getcwd(), "downloads")
+                os.makedirs(download_dir, exist_ok=True)
+                pdf_file_path = os.path.join(download_dir, f"{main_topic}_question_bank.pdf")
+                generate_question_bank_pdf(pdf_file_path,main_topic,question_bank)
+                chatbot_reply = "Question Bank has been generated and downloaded. Please verify it and let me know. Is there anything else I can help you with?"
+                print("Chatbot reply-------------",chatbot_reply)
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_question_bank_output'} 
+                return jsonify(response)
+            elif 'generate_notes' in tool:
+                print('Generating Notes...')
+                notes = all_output[0]['generate_notes_output']
+                print("Notes:------------------------",notes)
+                download_dir = os.path.join(os.getcwd(), "downloads")
+                os.makedirs(download_dir, exist_ok=True)
+                pdf_file_path = os.path.join(download_dir, f"{main_topic}_question_bank.pdf")
+                generate_notes_pdf(pdf_file_path,main_topic,notes)
+                chatbot_reply = "Notes has been generated and downloaded. Please verify it and let me know. Is there anything else I can help you with?"
+                print("Chatbot reply-------------",chatbot_reply)
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_notes_output'} 
                 return jsonify(response)
             else:
                 return jsonify({'error': 'User message not provided'}), 400
