@@ -420,7 +420,7 @@ def generate_notes(context):
     CONTEXT:
     ```{context}```
 
-    Ensure that the output is in valid JSON format, with keys corresponding to "brief_explanation" (a dictionary of explanations),"jargons_meaning" (a list of dictionaries), "concepts_explanation" (a dictionary of explanations), and "examples" (a dictionary of examples).
+    Ensure that the output is in valid JSON format, with keys corresponding to "brief_explanation" (a dictionary of explanations),"jargons_meaning" (a dictionary of jargons), "concepts_explanation" (a dictionary of explanations), and "examples" (a dictionary of examples).
     """
     completion = client.chat.completions.create(
         model = 'gpt-3.5-turbo-1106',
