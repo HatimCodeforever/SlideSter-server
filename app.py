@@ -721,7 +721,7 @@ def chatbot_route():
                 generate_question_bank_pdf(pdf_file_path,main_topic,question_bank)
                 chatbot_reply = "Question Bank has been generated and downloaded. Please verify it and let me know. Is there anything else I can help you with?"
                 print("Chatbot reply-------------",chatbot_reply)
-                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_question_bank_output'} 
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_question_bank', 'path': pdf_file_path} 
                 return jsonify(response)
             elif 'generate_notes' in tool:
                 print('Generating Notes...')
@@ -733,7 +733,7 @@ def chatbot_route():
                 generate_notes_pdf(pdf_file_path,main_topic,notes)
                 chatbot_reply = "Notes has been generated and downloaded. Please verify it and let me know. Is there anything else I can help you with?"
                 print("Chatbot reply-------------",chatbot_reply)
-                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_notes_output'} 
+                response = {'chatbotResponse': chatbot_reply,'function_name': 'generate_notes', 'path': pdf_file_path} 
                 return jsonify(response)
             else:
                 return jsonify({'error': 'User message not provided'}), 400
@@ -743,6 +743,14 @@ def send_image():
     data = request.json
     image_path = data.get('image_path')
     return send_file(image_path, mimetype='image/png')
+
+
+@app.route('/download_pdf', methods=['POST'])
+def download_pdf():
+    data = request.json
+    pdf_path = data.get('pdf_path')
+    return send_file(pdf_path, as_attachment=True)
+
 
 @app.route('/send_images', methods=['POST'])
 def send_images():
